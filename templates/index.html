@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Vendor Form Extractor{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h4 class="card-title mb-1">Generate Vendor Form</h4>
+        <p class="text-muted mb-4">Upload the three source documents and the vendor Excel template.</p>
+
+        <form id="generate-form" action="/generate" method="post" enctype="multipart/form-data">
+
+          <div class="mb-3">
+            <label class="form-label">GST Certificate</label>
+            <input class="form-control" type="file" name="gst_cert" accept="application/pdf" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Cancelled Cheque</label>
+            <input class="form-control" type="file" name="cancelled_cheque" accept="application/pdf,image/*" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Udyam Certificate</label>
+            <input class="form-control" type="file" name="udyam_cert" accept="application/pdf" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Vendor Excel Template</label>
+            <input class="form-control" type="file" name="vendor_template" accept=".xlsx" required>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label d-flex justify-content-between align-items-center">
+              <span>Sheet(s) to Fill</span>
+              <a href="#" id="select-all-sheets" class="small">Select all</a>
+            </label>
+            <div class="d-flex flex-wrap gap-3 border rounded p-3">
+              {% for sheet in ["NSIND", "NSITSL", "SEBIZ", "Smarter", "NSV", "CSIND"] %}
+              <div class="form-check">
+                <input class="form-check-input sheet-checkbox" type="checkbox" name="sheet_names" value="{{ sheet }}" id="sheet-{{ sheet }}">
+                <label class="form-check-label" for="sheet-{{ sheet }}">{{ sheet }}</label>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="form-text">Pick one, a few, or select all. Each checked tab in the template gets filled.</div>
+          </div>
+
+          <button id="submit-btn" type="submit" class="btn btn-primary w-100">
+            <span id="spinner" class="spinner-border spinner-border-sm d-none me-2"></span>
+            <span id="submit-label">Generate Vendor Form</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const sheetCheckboxes = document.querySelectorAll(".sheet-checkbox");
+  const selectAllLink = document.getElementById("select-all-sheets");
+
+  function updateSelectAllLabel() {
+    const allChecked = Array.from(sheetCheckboxes).every(cb => cb.checked);
+    selectAllLink.textContent = allChecked ? "Deselect all" : "Select all";
+  }
+
+  selectAllLink.addEventListener("click", function (e) {
+    e.preventDefault();
+    const allChecked = Array.from(sheetCheckboxes).every(cb => cb.checked);
+    sheetCheckboxes.forEach(cb => { cb.checked = !allChecked; });
+    updateSelectAllLabel();
+  });
+
+  sheetCheckboxes.forEach(cb => cb.addEventListener("change", updateSelectAllLabel));
+
+  document.getElementById("generate-form").addEventListener("submit", function (e) {
+    const anyChecked = Array.from(sheetCheckboxes).some(cb => cb.checked);
+    if (!anyChecked) {
+      e.preventDefault();
+      alert("Select at least one sheet to fill.");
+      return;
+    }
+    document.getElementById("spinner").classList.remove("d-none");
+    document.getElementById("submit-label").textContent = "Processing...";
+    document.getElementById("submit-btn").disabled = true;
+  });
+</script>
+
+{% endblock %}
