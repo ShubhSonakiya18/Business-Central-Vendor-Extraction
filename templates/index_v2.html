@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Vendor Form Extractor - V2 (Local){% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <div class="alert alert-success d-flex align-items-center" role="alert">
+      <div>
+        <strong>V2 &mdash; fully local.</strong>
+        Documents are read on this machine with PaddleOCR. Nothing is sent to any external service.
+        <a href="/" class="alert-link">Switch to V1 (Gemini)</a>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h4 class="card-title mb-1">Generate Vendor Form</h4>
+        <p class="text-muted mb-4">
+          Upload any number of supporting documents &mdash; GST certificate, Udyam certificate,
+          cancelled cheque, or anything else. The engine identifies each document and merges the
+          fields it finds.
+        </p>
+
+        <form id="generate-form" action="/v2/process-vendor" method="post" enctype="multipart/form-data">
+
+          <div class="mb-3">
+            <label class="form-label">Vendor Documents</label>
+            <input class="form-control" type="file" name="documents" multiple required
+                   accept=".pdf,.docx,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
+            <div class="form-text">
+              PDF, DOCX and images. Select several at once. Scanned pages are OCR'd automatically;
+              PDFs with a real text layer are read directly, which is far faster and more accurate.
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Vendor Excel Template <span class="text-muted">(optional)</span></label>
+            <input class="form-control" type="file" name="vendor_template" accept=".xlsx">
+            <div class="form-text">Leave empty to extract fields only, without filling a form.</div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Excel Mapping</label>
+              <select class="form-select" name="mapping">
+                {% for m in mappings %}
+                <option value="{{ m }}">{{ m }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">From <code>config/excel_mappings/</code>.</div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">OCR Model</label>
+              <select class="form-select" name="models">
+                <option value="small" selected>small &mdash; recommended</option>
+                <option value="medium">medium &mdash; slower, marginally better</option>
+                <option value="tiny">tiny &mdash; fastest, can hallucinate</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label d-flex justify-content-between align-items-center">
+              <span>Sheet(s) to Fill</span>
+              <a href="#" id="select-all-sheets" class="small d-none">Select all</a>
+            </label>
+            <div id="sheet-box" class="border rounded p-3">
+              <span class="text-muted small">Upload a template above and its sheet names will appear here.</span>
+            </div>
+            <div class="form-text">
+              Leave all unticked to fill the first sheet. Only used when a template is uploaded.
+            </div>
+          </div>
+
+          <button id="submit-btn" type="submit" class="btn btn-primary w-100">
+            <span id="spinner" class="spinner-border spinner-border-sm d-none me-2"></span>
+            <span id="submit-label">Process Locally</span>
+          </button>
+          <div class="form-text text-center mt-2">
+            Scanned pages take roughly 20&ndash;35s each on CPU. A typical three-document vendor
+            takes two to three minutes.
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Sheet names are read from the workbook the user actually uploaded rather
+  // than hardcoded. A fixed list silently produces a server error whenever the
+  // template's tabs are named differently, which is the common case once more
+  // than one form template is in use.
+  const templateInput = document.querySelector('input[name="vendor_template"]');
+  const sheetBox = document.getElementById("sheet-box");
+  const selectAllLink = document.getElementById("select-all-sheets");
+
+  function checkboxes() { return sheetBox.querySelectorAll(".sheet-checkbox"); }
+
+  function updateSelectAllLabel() {
+    const boxes = Array.from(checkboxes());
+    if (!boxes.length) { selectAllLink.classList.add("d-none"); return; }
+    selectAllLink.classList.remove("d-none");
+    selectAllLink.textContent = boxes.every(cb => cb.checked) ? "Deselect all" : "Select all";
+  }
+
+  selectAllLink.addEventListener("click", function (e) {
+    e.preventDefault();
+    const boxes = Array.from(checkboxes());
+    const allChecked = boxes.every(cb => cb.checked);
+    boxes.forEach(cb => { cb.checked = !allChecked; });
+    updateSelectAllLabel();
+  });
+
+  function renderSheets(names) {
+    if (!names.length) {
+      sheetBox.innerHTML = '<span class="text-muted small">No sheets found in that file.</span>';
+      selectAllLink.classList.add("d-none");
+      return;
+    }
+    sheetBox.className = "d-flex flex-wrap gap-3 border rounded p-3";
+    sheetBox.innerHTML = names.map(function (n, i) {
+      const id = "sheet-" + i;
+      const esc = n.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+      return '<div class="form-check">' +
+        '<input class="form-check-input sheet-checkbox" type="checkbox" name="sheet_names" ' +
+        'value="' + esc + '" id="' + id + '">' +
+        '<label class="form-check-label" for="' + id + '">' + esc + '</label></div>';
+    }).join("");
+    checkboxes().forEach(cb => cb.addEventListener("change", updateSelectAllLabel));
+    updateSelectAllLabel();
+  }
+
+  templateInput.addEventListener("change", function () {
+    const file = templateInput.files[0];
+    if (!file) { return; }
+    sheetBox.innerHTML = '<span class="text-muted small">Reading sheet names...</span>';
+    const body = new FormData();
+    body.append("vendor_template", file);
+    fetch("/v2/template-sheets", { method: "POST", body: body })
+      .then(r => r.json())
+      .then(d => renderSheets(d.sheets || []))
+      .catch(() => {
+        sheetBox.innerHTML =
+          '<span class="text-danger small">Could not read that workbook.</span>';
+      });
+  });
+
+  document.getElementById("generate-form").addEventListener("submit", function () {
+    document.getElementById("spinner").classList.remove("d-none");
+    document.getElementById("submit-label").textContent = "Processing locally...";
+    document.getElementById("submit-btn").disabled = true;
+  });
+</script>
+
+{% endblock %}

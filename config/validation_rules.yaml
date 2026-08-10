@@ -1,0 +1,211 @@
+# =============================================================================
+# V2 VALIDATION RULES
+# =============================================================================
+# The ONE place format rules live. V1 duplicated the same six regexes across
+# vendor_form_extractor_gemini.py and legacy/vendor_form_extractor_ocr.py, so
+# they could drift apart; here they are defined once and referenced by name
+# from field_dictionary.yaml.
+#
+# Rule types (implemented generically by the validator engine in Step 6):
+#   regex        Value must fully match `pattern`.
+#   length       Digit/character count bounds, optional digits_only.
+#   enum         Value must be one of `values` (compared case-insensitively).
+#   non_empty    Value must be present and not blank.
+#   derived      Value must agree with something computed from ANOTHER field
+#                (see `source` / `rule`), which is how cross-field checks like
+#                "the PAN inside the GSTIN matches the PAN field" are expressed
+#                without hardcoding either field name in Python.
+#
+# `severity` decides what a failure means:
+#   error    -> field is untrusted, goes to needs_review
+#   warning  -> field is kept but flagged
+# =============================================================================
+
+version: 1
+
+validators:
+
+  non_empty:
+    type: non_empty
+    severity: error
+    message: Value is missing or blank
+
+  # -- statutory identifiers -------------------------------------------------
+
+  gstin_format:
+    type: regex
+    pattern: '[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]'
+    severity: error
+    message: Not a valid 15-character GSTIN
+
+  gstin_contains_pan:
+    # Characters 3-12 of a GSTIN are the holder's PAN. If both were extracted
+    # independently and disagree, one of them was misread.
+    type: derived
+    rule: substring_equals
+    source: gst_number
+    target: pan
+    start: 2
+    end: 12
+    severity: error
+    message: PAN embedded in the GSTIN does not match the extracted PAN
+
+  gstin_state_code:
+    # First two digits are the state code; must be a real one (01-38).
+    type: derived
+    rule: state_code_valid
+    source: gst_number
+    start: 0
+    end: 2
+    severity: warning
+    message: GSTIN state code is not a recognised Indian state code
+
+  pan_format:
+    type: regex
+    pattern: '[A-Z]{5}[0-9]{4}[A-Z]'
+    severity: error
+    message: Not a valid 10-character PAN
+
+  tan_format:
+    type: regex
+    pattern: '[A-Z]{4}[0-9]{5}[A-Z]'
+    severity: error
+    message: Not a valid 10-character TAN
+
+  udyam_format:
+    type: regex
+    pattern: 'UDYAM-[A-Z]{2}-[0-9]{2}-[0-9]{7}'
+    severity: error
+    message: Not a valid Udyam registration number (UDYAM-XX-00-0000000)
+
+  esic_format:
+    type: regex
+    pattern: '[0-9]{17}'
+    severity: warning
+    message: ESIC number is not 17 digits
+
+  # -- address ---------------------------------------------------------------
+
+  pin_format:
+    type: regex
+    pattern: '[1-9][0-9]{5}'
+    severity: error
+    message: Not a valid 6-digit Indian PIN code
+
+  indian_state:
+    type: enum
+    severity: warning
+    message: Not a recognised Indian state or union territory
+    values:
+      - Andhra Pradesh
+      - Arunachal Pradesh
+      - Assam
+      - Bihar
+      - Chhattisgarh
+      - Goa
+      - Gujarat
+      - Haryana
+      - Himachal Pradesh
+      - Jharkhand
+      - Karnataka
+      - Kerala
+      - Madhya Pradesh
+      - Maharashtra
+      - Manipur
+      - Meghalaya
+      - Mizoram
+      - Nagaland
+      - Odisha
+      - Punjab
+      - Rajasthan
+      - Sikkim
+      - Tamil Nadu
+      - Telangana
+      - Tripura
+      - Uttar Pradesh
+      - Uttarakhand
+      - West Bengal
+      - Andaman and Nicobar Islands
+      - Chandigarh
+      - Dadra and Nagar Haveli and Daman and Diu
+      - Delhi
+      - Jammu and Kashmir
+      - Ladakh
+      - Lakshadweep
+      - Puducherry
+
+  # -- contact ---------------------------------------------------------------
+
+  country_name:
+    # Deliberately narrow. Its job is not to enumerate the world but to notice
+    # that whatever landed next to the caption "Country" is not a country at
+    # all, so the configured default can take over.
+    type: enum
+    severity: error
+    message: Not a recognised country name
+    values:
+      - India
+      - Bharat
+      - United States
+      - United Kingdom
+      - Singapore
+      - United Arab Emirates
+      - Germany
+      - China
+      - Japan
+      - Australia
+      - Canada
+      - France
+      - Netherlands
+      - Switzerland
+
+  email_format:
+    type: regex
+    pattern: '[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}'
+    severity: error
+    message: Not a valid email address
+
+  indian_phone:
+    type: regex
+    pattern: '[6-9][0-9]{9}'
+    severity: error
+    message: Not a valid 10-digit Indian mobile number
+
+  # -- banking ---------------------------------------------------------------
+
+  ifsc_format:
+    type: regex
+    pattern: '[A-Z]{4}0[A-Z0-9]{6}'
+    severity: error
+    message: Not a valid 11-character IFSC code
+
+  account_number_format:
+    type: length
+    min: 9
+    max: 18
+    digits_only: true
+    severity: error
+    message: Account number must be 9-18 digits
+
+# =============================================================================
+# CROSS-DOCUMENT CONSISTENCY
+# =============================================================================
+# Applied to every field whose dictionary entry sets
+# cross_document_consistency: true. Compares the value found in each document
+# and reports agreement rather than silently picking one.
+cross_document:
+  # Values are compared after normalization; below this similarity they are
+  # treated as disagreeing. Loose enough to tolerate "M B CONTROL & SYSTEMS
+  # PVT LTD" vs "M.B.CONTROL & SYSTEM PVT LTD", strict enough to catch a
+  # genuinely different company.
+  similarity_threshold: 0.85
+  # When documents disagree, trust them in this order. The GST certificate is
+  # the legal source of record, which is the same precedence V1 applied when
+  # it resolved PAN conflicts in favour of the GST certificate.
+  source_precedence:
+    - gst_certificate
+    - udyam_certificate
+    - cancelled_cheque
+    - other
+  severity: warning
+  message: Field value differs across source documents
