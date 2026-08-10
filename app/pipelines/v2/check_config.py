@@ -1,7 +1,7 @@
 """
 Step 4 harness: validate the field dictionary and prove it against real data.
 
-    python -m v2.check_config
+    python -m app.pipelines.v2.check_config
 
 Three checks, each of which can fail the run:
 
@@ -21,7 +21,7 @@ from pathlib import Path
 
 from .config_loader import ConfigError, load_config
 
-V1_SOURCE = Path(__file__).resolve().parent.parent / "vendor_form_extractor_gemini.py"
+V1_SOURCE = Path(__file__).resolve().parent.parent.parent / "services" / "vendor_v1_gemini.py"
 
 # Real values read off the sample documents during the Step 3 OCR run, plus
 # values that must NOT match. The negatives matter: the cheque's MICR band

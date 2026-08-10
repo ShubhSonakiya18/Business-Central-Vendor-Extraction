@@ -23,7 +23,7 @@ from typing import Optional
 
 import yaml
 
-CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 
 # Ops the normalizer (Step 6) implements. Declared here so a typo in YAML is a
 # load-time error rather than a silently skipped transformation.

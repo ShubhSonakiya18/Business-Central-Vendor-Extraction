@@ -1,17 +1,17 @@
 """
-Vendor Creation Request Form - Auto-fill Extractor (Gemini version)
-====================================================================
+Vendor Creation Request Form - Auto-fill Extractor (V1, Gemini)
+=================================================================
 Reads: Cancelled Cheque (image/PDF), GST Certificate (PDF), Udyam Certificate (PDF)
-Uses the Gemini API (multimodal) to read each document directly 
+Uses the Gemini API (multimodal) to read each document directly.
 
 Dependencies:
     pip install google-genai openpyxl
 
 Environment:
-    GEMINI_API_KEY must be set.
+    GEMINI_API_KEY must be set (see app/core/config.py, .env.example).
 
 Usage:
-    python vendor_form_extractor_gemini.py --cheque cheque.pdf --gst gst_cert.pdf --udyam udyam_cert.pdf --out result.json
+    python -m app.services.vendor_v1_gemini --cheque cheque.pdf --gst gst_cert.pdf --udyam udyam_cert.pdf --out result.json
 """
 
 import os
@@ -306,5 +306,5 @@ if __name__ == "__main__":
             )
         fill_vendor_xlsx(data, args.template, args.sheet, args.xlsx_out)
 
-        from verify_vendor_excel import verify_vendor_excel
+        from app.services.vendor_v1_verify import verify_vendor_excel
         verify_vendor_excel(data, args.xlsx_out, args.sheet)

@@ -1,8 +1,8 @@
 """
 Step 3 harness: run the loader over real documents and dump raw output.
 
-    python -m v2.dump_ocr uploads/861b7dc254 --out outputs/v2_ocr
-    python -m v2.dump_ocr a.pdf b.docx --out outputs/v2_ocr --force-ocr
+    python -m app.pipelines.v2.dump_ocr uploads/861b7dc254 --out outputs/v2_ocr
+    python -m app.pipelines.v2.dump_ocr a.pdf b.docx --out outputs/v2_ocr --force-ocr
 
 Writes one JSON per document plus a combined `document_set.json`, and prints
 a per-span table (text, bbox, page, confidence) so OCR quality can be eyeballed

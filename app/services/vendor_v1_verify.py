@@ -1,17 +1,17 @@
 """
-Vendor Excel Verification
-==========================
+Vendor Excel Verification (V1)
+================================
 Post-processing step: reopens a filled vendor Excel template and checks each
 mapped cell against the extracted JSON it was supposed to be filled from.
 
 Does not touch extraction or Excel-writing logic. Reuses XLSX_CELL_MAP from
-vendor_form_extractor_gemini.py so the two stay in sync.
+vendor_v1_gemini.py so the two stay in sync.
 
 Usage (standalone):
-    python verify_vendor_excel.py --json result.json --xlsx vendor_filled.xlsx --sheet Sheet1
+    python -m app.services.vendor_v1_verify --json result.json --xlsx vendor_filled.xlsx --sheet Sheet1
 
 Usage (as a module):
-    from verify_vendor_excel import verify_vendor_excel
+    from app.services.vendor_v1_verify import verify_vendor_excel
     report = verify_vendor_excel(data, "vendor_filled.xlsx", "Sheet1")
 """
 
@@ -22,7 +22,7 @@ from pathlib import Path
 import openpyxl
 from openpyxl.styles import PatternFill
 
-from vendor_form_extractor_gemini import XLSX_CELL_MAP
+from app.services.vendor_v1_gemini import XLSX_CELL_MAP
 
 PASS_FILL = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
 FAIL_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")

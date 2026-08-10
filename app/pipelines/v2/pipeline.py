@@ -8,9 +8,9 @@ End-to-end, fully local:
 
 Every stage is importable on its own; this module is the wiring plus a CLI.
 
-    python -m v2.pipeline uploads/861b7dc254 --out outputs/v2_run
-    python -m v2.pipeline --cache outputs/v2_ocr/document_set.json --out outputs/v2_run
-    python -m v2.pipeline uploads/861b7dc254 --template form.xlsx --sheet Sheet1
+    python -m app.pipelines.v2.pipeline uploads/861b7dc254 --out outputs/v2_run
+    python -m app.pipelines.v2.pipeline --cache outputs/v2_ocr/document_set.json --out outputs/v2_run
+    python -m app.pipelines.v2.pipeline uploads/861b7dc254 --template form.xlsx --sheet Sheet1
 """
 
 from __future__ import annotations

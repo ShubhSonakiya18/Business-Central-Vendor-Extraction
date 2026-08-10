@@ -46,8 +46,8 @@ python -m venv .venv
 .venv\Scripts\activate          # or: source .venv/bin/activate
 pip install -r requirements.txt
 
-set GEMINI_API_KEY=your-key     # or: $env:GEMINI_API_KEY = "..." in PowerShell
-uvicorn app:app --reload
+cp .env.example .env            # then edit .env and set GEMINI_API_KEY
+uvicorn app.main:app --reload
 ```
 Open `http://127.0.0.1:8000/`.
 
@@ -60,7 +60,7 @@ py -3.12 -m venv .venv-paddle
 .venv-paddle\Scripts\Activate.ps1     # or: source .venv-paddle/bin/activate
 pip install -r requirements.txt -r requirements-v2.txt
 
-uvicorn app:app --reload
+uvicorn app.main:app --reload
 ```
 Open `http://127.0.0.1:8000/v2`. If `google-genai` isn't installed in this environment, V1's routes automatically redirect to V2 rather than erroring.
 
@@ -71,36 +71,58 @@ Open `http://127.0.0.1:8000/v2`. If `google-genai` isn't installed in this envir
 ## Project layout
 
 ```
-app.py                             FastAPI app — serves both V1 (/) and V2 (/v2)
-vendor_form_extractor_gemini.py    V1: Gemini extraction + Excel fill
-verify_vendor_excel.py             V1: Excel read-back verification
-legacy/                            Superseded OCR/regex prototype (kept for reference)
+app/
+├── main.py                         FastAPI entry point — wires routers, serves both V1 (/) and V2 (/v2)
+│
+├── core/
+│   ├── config.py                   Loads .env into a typed Settings object; picks V1/V2 routing
+│   └── logging.py                  Configures the root logger (V2's modules log via logging.getLogger)
+│
+├── routes/                         HTTP layer only — request in, response out
+│   ├── vendor_v1.py                "/" and "/generate", "/results/*", "/download/*"  (Gemini)
+│   └── vendor_v2.py                "/v2/*"  (local pipeline)
+│
+├── services/                       Business logic, framework-agnostic
+│   ├── vendor_v1_gemini.py         V1: Gemini extraction + Excel fill (as originally written)
+│   ├── vendor_v1_verify.py         V1: Excel read-back verification (as originally written)
+│   ├── vendor_v1_service.py        V1: orchestrates the two modules above for the route
+│   └── vendor_v2_service.py        V2: orchestrates app/pipelines/v2 for the route, typed errors
+│
+├── schemas/
+│   └── vendor.py                   Canonical vendor JSON + verification report shapes (pydantic)
+│
+├── utils/
+│   └── uploads.py                  Shared "save this UploadFile to disk" helper
+│
+├── pipelines/
+│   └── v2/                         V2: fully local extraction pipeline
+│       ├── models.py                Common document representation (spans, bboxes, pages)
+│       ├── ocr_engine.py            PaddleOCR 3.x wrapper — only module that imports paddleocr
+│       ├── document_loader.py       PDF / image / DOCX → common representation
+│       ├── config_loader.py         Strict YAML loader for the field dictionary & rules
+│       ├── layout_engine.py         Spatial queries: visual lines, label→value neighbours
+│       ├── field_matcher.py         Scores candidate values per field (label + position + pattern + OCR confidence)
+│       ├── semantic_engine.py       Classifies documents, merges candidates across them
+│       ├── normalizer.py            Value cleanup ops (uppercase, digit fixes, etc.)
+│       ├── validator.py             Generic rule executor — regex / length / enum / cross-field
+│       ├── excel_mapper.py          Fills a template from a YAML cell map
+│       ├── verifier.py              Reopens the saved file, diffs every cell, colours PASS/FAIL
+│       ├── pipeline.py              Wires the above end to end; CLI entry point
+│       ├── dump_ocr.py              CLI: inspect raw OCR/document output
+│       └── check_config.py          CLI: validate the YAML config, no OCR needed
+│
+├── config/                          V2's field knowledge — edit this, not Python, to change behaviour
+│   ├── field_dictionary.yaml        24 fields: labels, regex patterns, validators, search rules
+│   ├── validation_rules.yaml        15 validators (format + cross-document consistency)
+│   ├── document_profiles.yaml       How a document is classified (GST cert vs cheque vs ...)
+│   └── excel_mappings/
+│       └── vendor_creation_v1.yaml  Field → Excel cell mapping
+│
+├── templates/                       Jinja2 templates (V1 + V2 upload/results/error pages)
+└── static/                          Shared CSS
 
-v2/                                 V2: fully local pipeline
-├── models.py                       Common document representation (spans, bboxes, pages)
-├── ocr_engine.py                   PaddleOCR 3.x wrapper — only module that imports paddleocr
-├── document_loader.py              PDF / image / DOCX → common representation
-├── config_loader.py                Strict YAML loader for the field dictionary & rules
-├── layout_engine.py                Spatial queries: visual lines, label→value neighbours
-├── field_matcher.py                Scores candidate values per field (label + position + pattern + OCR confidence)
-├── semantic_engine.py              Classifies documents, merges candidates across them
-├── normalizer.py                   Value cleanup ops (uppercase, digit fixes, etc.)
-├── validator.py                    Generic rule executor — regex / length / enum / cross-field
-├── excel_mapper.py                 Fills a template from a YAML cell map
-├── verifier.py                     Reopens the saved file, diffs every cell, colours PASS/FAIL
-├── pipeline.py                     Wires the above end to end; CLI entry point
-├── dump_ocr.py                     CLI: inspect raw OCR/document output
-└── check_config.py                 CLI: validate the YAML config, no OCR needed
-
-config/                             V2's field knowledge — edit this, not Python, to change behaviour
-├── field_dictionary.yaml           24 fields: labels, regex patterns, validators, search rules
-├── validation_rules.yaml           15 validators (format + cross-document consistency)
-├── document_profiles.yaml          How a document is classified (GST cert vs cheque vs ...)
-└── excel_mappings/
-    └── vendor_creation_v1.yaml     Field → Excel cell mapping
-
-templates/                          Jinja2 templates (V1 + V2 upload/results/error pages)
-static/                             Shared CSS
+legacy/                              Superseded OCR/regex prototype (kept for reference)
+.env / .env.example                  Environment values / template — GEMINI_API_KEY, routing, paths
 ```
 
 ---
@@ -168,7 +190,7 @@ Loads the template, writes only non-empty values, saves — then **reopens the s
 
 Everything below is data, not code. The loader is strict on purpose: an unresolvable validator reference, an invalid regex, or confidence weights that don't sum to `1.0` fail at load time — naming the exact field — rather than silently producing a blank Excel cell later.
 
-**Add a field** by adding a block to `config/field_dictionary.yaml`:
+**Add a field** by adding a block to `app/config/field_dictionary.yaml`:
 ```yaml
 ifsc:
   labels: [IFSC, IFSC Code, IFS Code, RTGS/NEFT/IFS Code]
@@ -179,7 +201,7 @@ ifsc:
   required: true
 ```
 
-**Add a validator** in `config/validation_rules.yaml`:
+**Add a validator** in `app/config/validation_rules.yaml`:
 ```yaml
 pin_format:
   type: regex
@@ -188,7 +210,7 @@ pin_format:
   message: Not a valid 6-digit Indian PIN code
 ```
 
-**Add an Excel template** by adding a file under `config/excel_mappings/`.
+**Add an Excel template** by adding a file under `app/config/excel_mappings/`.
 
 No Python changes are required for any of the above.
 
@@ -198,17 +220,17 @@ No Python changes are required for any of the above.
 
 ```bash
 # Validate the YAML config (fast, no OCR)
-python -m v2.check_config
+python -m app.pipelines.v2.check_config
 
 # Inspect raw OCR/document output for a file or folder
-python -m v2.dump_ocr path/to/documents --out outputs/inspect
+python -m app.pipelines.v2.dump_ocr path/to/documents --out outputs/inspect
 
 # Run the full pipeline end to end
-python -m v2.pipeline path/to/documents \
+python -m app.pipelines.v2.pipeline path/to/documents \
   --template "Vendor Form.xlsx" --sheet Sheet1 --out outputs/run
 
 # Re-run extraction against a previously saved document set (skips OCR entirely)
-python -m v2.pipeline --cache outputs/inspect/document_set.json --out outputs/run
+python -m app.pipelines.v2.pipeline --cache outputs/inspect/document_set.json --out outputs/run
 ```
 
 ---
