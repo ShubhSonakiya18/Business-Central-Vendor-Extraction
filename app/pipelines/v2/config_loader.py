@@ -39,7 +39,13 @@ KNOWN_NORMALIZERS = {
     "fix_ifsc_confusions",
 }
 
-KNOWN_VALIDATOR_TYPES = {"regex", "length", "enum", "non_empty", "derived"}
+KNOWN_VALIDATOR_TYPES = {"regex", "length", "enum", "non_empty", "derived", "dictionary"}
+
+# Word lists a `dictionary` validator can reference. Each is a plain text file
+# under config/dictionaries/, one entry per line. Declared here for the same
+# reason KNOWN_NORMALIZERS is: a typo'd dictionary name should fail at config
+# load time, not silently no-op the check at runtime.
+KNOWN_DICTIONARIES = {"scheduled_banks", "entity_suffixes"}
 
 KNOWN_SEARCH_DIRECTIONS = {"right", "below", "left", "above"}
 
@@ -155,6 +161,10 @@ class ValidatorSpec:
     target: Optional[str] = None
     start: Optional[int] = None
     end: Optional[int] = None
+    # -- dictionary --
+    dictionary: Optional[str] = None
+    match: str = "contains"  # "contains" | "membership"
+    min_similarity: float = 0.90
 
 
 @dataclass
@@ -282,6 +292,9 @@ def load_validation_rules(path: Optional[Path] = None) -> ValidationRules:
             target=cfg.get("target"),
             start=cfg.get("start"),
             end=cfg.get("end"),
+            dictionary=cfg.get("dictionary"),
+            match=cfg.get("match", "contains"),
+            min_similarity=float(cfg.get("min_similarity", 0.90)),
         )
 
         if vtype == "regex":
@@ -294,6 +307,18 @@ def load_validation_rules(path: Optional[Path] = None) -> ValidationRules:
             raise ConfigError(f"validator {name!r} of type length needs min and/or max")
         elif vtype == "derived" and not spec.rule:
             raise ConfigError(f"validator {name!r} of type derived needs a rule")
+        elif vtype == "dictionary":
+            if not spec.dictionary:
+                raise ConfigError(f"validator {name!r} of type dictionary needs a dictionary name")
+            if spec.dictionary not in KNOWN_DICTIONARIES:
+                raise ConfigError(
+                    f"validator {name!r} references unknown dictionary {spec.dictionary!r}; "
+                    f"expected one of {sorted(KNOWN_DICTIONARIES)}"
+                )
+            if spec.match not in {"contains", "membership"}:
+                raise ConfigError(
+                    f"validator {name!r}: match must be 'contains' or 'membership', got {spec.match!r}"
+                )
 
         validators[name] = spec
 

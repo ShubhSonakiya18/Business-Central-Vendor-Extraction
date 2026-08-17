@@ -2,6 +2,11 @@
 /uploads/
 /outputs/
 
+# Ground truth files transcribe real vendor PII (GSTIN, PAN, account numbers)
+# by design. Only the fabricated example_synthetic.yaml is committed.
+/app/pipelines/v2/eval/ground_truth/*.yaml
+!/app/pipelines/v2/eval/ground_truth/example_synthetic.yaml
+
 # Logs
 *.log
 

@@ -1,0 +1,29 @@
+# Legal-entity suffixes that a valid Indian business name is expected to
+# carry. A vendor_name that contains none of these (after fuzzy match) is
+# not necessarily wrong -- a sole proprietorship trades under a bare name --
+# but is worth a soft flag: this catches OCR garbage that mangled the
+# company-type portion of the name specifically (a common failure since it's
+# usually smaller print at the end of the legal name line).
+# Used by: vendor_name field's dictionary validator (match: contains, severity: warning).
+Private Limited
+Pvt Ltd
+Pvt. Ltd.
+Ltd
+Limited
+LLP
+Limited Liability Partnership
+& Co
+and Co
+& Sons
+and Sons
+Enterprises
+Industries
+Trading Co
+Trading Company
+Corporation
+Corp
+Proprietorship
+Partnership
+Firm
+Associates
+Agencies

@@ -16,9 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, process as fuzz_process
 
 from .config_loader import ValidationRules, ValidatorSpec
+from .dictionaries import load_dictionary
 
 # GST state codes 01-38 are assigned; the rest are unallocated.
 _VALID_STATE_CODES = {f"{i:02d}" for i in range(1, 39)}
@@ -67,6 +68,56 @@ def _rule_non_empty(spec: ValidatorSpec, value: str, values: dict) -> bool:
     return bool(value and value.strip())
 
 
+def _rule_dictionary(spec: ValidatorSpec, value: str, values: dict) -> bool:
+    """Fuzzy-check `value` against a curated word list (config/dictionaries/).
+
+    Two modes, chosen per validator in YAML:
+
+    - "membership": the whole value must fuzzy-match ONE dictionary entry.
+      For a genuinely closed set (scheduled banks) -- an entry that scores
+      below min_similarity against every bank name is either a bank not on
+      RBI's list (rare for a vendor onboarding) or, far more often on a
+      cheque scan, OCR noise.
+
+    - "contains": the value must fuzzy-contain ANY dictionary entry as a
+      substring match. For vendor_name against entity_suffixes: the full
+      name isn't enumerable, but Indian company names overwhelmingly end in
+      a small set of legal-entity suffixes, so checking for one of those
+      catches OCR damage to that specific, usually-smaller-print portion of
+      the name without trying to validate the whole string.
+
+    Scorer differs by mode, deliberately. "membership" uses plain `ratio`:
+    the whole value should closely resemble the whole entry, so a value that
+    merely contains a bank-shaped word ("Xyzabc Fake Bank Corp" contains
+    "Bank") must still score low overall. `WRatio`'s partial-match credit is
+    exactly wrong here -- measured giving that fake name an 85/100 against
+    "ICICI Bank", comfortably over threshold, versus `ratio`'s 45/100.
+    "contains" uses `WRatio` instead, because there the length mismatch
+    between a short suffix and a long value is expected and wanted: "PVT LTD"
+    genuinely is a substring of "M B CONTROL & SYSTEMS PVT LTD", and `ratio`
+    would penalize that length difference even though it's a clean match.
+
+    Comparison is case-folded regardless of mode: `ratio` is case-sensitive,
+    and a field's own normalization chain may not include case folding (a
+    bank name is deliberately title-cased for the final Excel output, not
+    upper/lowercased), so folding case only for this comparison avoids that
+    choice leaking into what should be a pure format check.
+    """
+    if not value:
+        return False
+
+    entries = load_dictionary(spec.dictionary)
+    threshold = spec.min_similarity * 100
+    value_cf = value.lower()
+
+    if spec.match == "membership":
+        match = fuzz_process.extractOne(value_cf, [e.lower() for e in entries], scorer=fuzz.ratio)
+        return bool(match and match[1] >= threshold)
+
+    # "contains"
+    return any(fuzz.WRatio(entry.lower(), value_cf) >= threshold for entry in entries)
+
+
 def _derived_substring_equals(spec: ValidatorSpec, value: str, values: dict) -> Optional[bool]:
     """Compare a slice of `source` against `target`. Returns None ("cannot
     judge") when either side is absent -- a missing PAN is the PAN field's
@@ -94,6 +145,7 @@ _RULES: dict[str, Callable[[ValidatorSpec, str, dict], bool]] = {
     "length": _rule_length,
     "enum": _rule_enum,
     "non_empty": _rule_non_empty,
+    "dictionary": _rule_dictionary,
 }
 
 _DERIVED: dict[str, Callable[[ValidatorSpec, str, dict], Optional[bool]]] = {

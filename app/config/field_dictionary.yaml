@@ -80,7 +80,7 @@ fields:
       - Name of the Enterprise
     patterns: []          # Names have no fixed shape; label + position decide.
     normalization: [strip, collapse_spaces]
-    validators: [non_empty]
+    validators: [non_empty, vendor_name_has_entity_suffix]
     value_type: text
     expected_documents: [gst_certificate, udyam_certificate]
     priority: 90
@@ -387,7 +387,7 @@ fields:
       - Banker
     patterns: []
     normalization: [strip, collapse_spaces]
-    validators: []
+    validators: [bank_name_known]
     value_type: text
     expected_documents: [cancelled_cheque]
 

@@ -187,6 +187,32 @@ validators:
     severity: error
     message: Account number must be 9-18 digits
 
+  bank_name_known:
+    # bank_name has no regex pattern (a bank name has no fixed shape), so this
+    # is the only structural check available. Warning, not error: a bank
+    # genuinely outside this curated list is possible (a small cooperative
+    # bank, a name format change), and the field should stay usable for
+    # manual review rather than being blocked outright.
+    type: dictionary
+    dictionary: scheduled_banks
+    match: membership
+    min_similarity: 0.80
+    severity: warning
+    message: Does not fuzzy-match a known scheduled bank name
+
+  vendor_name_has_entity_suffix:
+    # Most Indian business names end in a legal-entity suffix (Pvt Ltd, LLP,
+    # & Sons, ...). Its absence doesn't prove the name is wrong -- a sole
+    # proprietorship trades under a bare name -- so this is a warning, not a
+    # rejection; it exists to flag OCR damage to that specific portion of the
+    # name for review, not to enforce a naming convention.
+    type: dictionary
+    dictionary: entity_suffixes
+    match: contains
+    min_similarity: 0.85
+    severity: warning
+    message: No recognised legal-entity suffix found in the name
+
 # =============================================================================
 # CROSS-DOCUMENT CONSISTENCY
 # =============================================================================

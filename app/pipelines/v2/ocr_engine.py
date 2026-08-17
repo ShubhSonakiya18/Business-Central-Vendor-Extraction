@@ -86,6 +86,7 @@ class OCREngine:
         text_det_limit_side_len: Optional[int] = None,
         text_rec_score_thresh: float = 0.0,
         drop_score: float = 0.30,
+        preprocess: bool = False,
     ):
         self.lang = lang
         self.det_model = det_model
@@ -99,6 +100,12 @@ class OCREngine:
         # almost always watermark bleed or scan noise, and letting them through
         # pollutes spatial matching later.
         self.drop_score = drop_score
+        # Off by default: measured neutral-to-negative on every sample document
+        # tried (see preprocessing.py's module docstring for the numbers).
+        # Available for a genuinely noisy source (scanner speckle, heavy JPEG
+        # artifacts) that the current samples don't represent -- re-measure
+        # before flipping the default.
+        self.preprocess = preprocess
         self._ocr = None
 
     # -- engine lifecycle ---------------------------------------------------
@@ -167,6 +174,10 @@ class OCREngine:
     ) -> list[TextSpan]:
         """Run OCR on one RGB image and return spans in reading order."""
         engine = self._load()
+
+        if self.preprocess:
+            from .preprocessing import clean_for_ocr
+            image = clean_for_ocr(image)
 
         # PaddleOCR expects BGR (OpenCV convention); our renders are RGB.
         if image.ndim == 3 and image.shape[2] == 3:
