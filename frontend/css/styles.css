@@ -1,0 +1,107 @@
+/* Custom Business Central Styling & Animations */
+
+/* Segoe & Fluent UI Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Glassmorphism Navigation */
+.bc-glass-header {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Auto-fill field highlight animation */
+@keyframes autoFillGlow {
+  0% {
+    background-color: #e6f4ea;
+    box-shadow: 0 0 0 3px rgba(16, 124, 65, 0.35);
+  }
+  50% {
+    background-color: #edf7f0;
+    box-shadow: 0 0 0 3px rgba(16, 124, 65, 0.2);
+  }
+  100% {
+    background-color: #f4fbf6;
+    box-shadow: 0 0 0 2px rgba(16, 124, 65, 0.15);
+  }
+}
+
+.autofill-active {
+  animation: autoFillGlow 1.2s ease-out forwards;
+  border-left: 3.5px solid #107c41 !important;
+}
+
+/* Scanning Pulse Radar Line for file extraction */
+@keyframes scanPulse {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0.2;
+  }
+}
+
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #0078d4, #107c41, transparent);
+  box-shadow: 0 0 8px #0078d4;
+  animation: scanPulse 1.8s infinite linear;
+}
+
+/* Tooltip & Popover Animations */
+.animate-fade-in {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Dropzone pulse on dragover */
+.dropzone-active {
+  border-color: #0078d4 !important;
+  background-color: #f0f6ff !important;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15) !important;
+}
+
+/* Input Focus Ring Dynamics */
+.bc-input {
+  transition: all 0.15s ease-in-out;
+}
+
+.bc-input:focus {
+  border-color: #0078d4;
+  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15);
+  outline: none;
+}

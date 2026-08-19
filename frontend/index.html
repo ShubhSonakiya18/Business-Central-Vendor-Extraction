@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business Central Document Intake Portal</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Config Customization -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bc: {
+              50: '#f0f6ff',
+              100: '#e0edff',
+              200: '#b9d7fe',
+              300: '#7cb7fd',
+              400: '#3691fa',
+              500: '#0078d4',
+              600: '#005ea6',
+              700: '#0f6cbd',
+              800: '#084878',
+              900: '#0c3d64',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif']
+          },
+          boxShadow: {
+            'bc-sm': '0 1.6px 3.6px 0 rgba(0,0,0,0.132), 0 0.3px 0.9px 0 rgba(0,0,0,0.108)',
+            'bc-md': '0 3.2px 7.2px 0 rgba(0,0,0,0.132), 0 0.6px 1.8px 0 rgba(0,0,0,0.108)'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18 CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-[#f4f6f9] text-[#1e293b] font-sans antialiased min-h-screen">
+  <div id="root"></div>
+
+  <!-- Global Error Catching -->
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error('Portal Initialization Error:', e.error || e.message);
+    });
+  </script>
+
+  <!-- Main Application Script -->
+  <script type="text/babel" src="js/app.jsx"></script>
+</body>
+</html>
