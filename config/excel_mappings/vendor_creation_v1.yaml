@@ -1,0 +1,46 @@
+# =============================================================================
+# EXCEL MAPPING: Vendor Creation Request Form
+# =============================================================================
+# Moves V1's hardcoded XLSX_CELL_MAP out of Python. Cell addresses were taken
+# verbatim from that map, so output is byte-for-byte comparable with V1.
+#
+# `sheet` is intentionally left unset per field. The same template is reused
+# with differently-named tabs per business unit, and the caller supplies the
+# sheet name at run time. Set `sheet:` on a field only when it must always
+# land on one specific tab regardless of what the caller asks for.
+#
+# Supporting another template = adding another file in this directory. No code.
+# =============================================================================
+
+template: vendor_creation_v1
+description: Vendor Creation Request Form - supplier-filled block (rows 37-63)
+
+# Written into every mapped cell that has no extracted value. `null` leaves the
+# cell genuinely empty rather than writing the string "None".
+blank_value: null
+
+fields:
+  vendor_name:        {cell: B37}
+  address_1:          {cell: B38}
+  address_2:          {cell: B39}
+  address_3:          {cell: B40}
+  address_4:          {cell: B41}
+  city:               {cell: B42}
+  state:              {cell: B43}
+  country:            {cell: B44}
+  pin_code:           {cell: B45}
+  telephone:          {cell: B46}
+  email:              {cell: B48}
+  website:            {cell: B49}
+  company_type:       {cell: B50}
+  nature_of_business: {cell: B51}
+  tan:                {cell: B52}
+  pan:                {cell: B53}
+  gst_number:         {cell: B55}
+  esic_number:        {cell: B56}
+  udyam_number:       {cell: B57}
+  bank_name:          {cell: B59}
+  branch_address:     {cell: B60}
+  ifsc:               {cell: B61}
+  account_type:       {cell: B62}
+  account_number:     {cell: B63}

@@ -1,0 +1,72 @@
+# =============================================================================
+# DOCUMENT PROFILES
+# =============================================================================
+# Identifies what each uploaded file is, which gives the semantic engine its
+# "document context": a GSTIN found on the GST certificate is worth more than
+# the same shape found on a cheque, and the IFSC printed on a cancelled cheque
+# outranks one mentioned in passing inside a Udyam certificate.
+#
+# Classification is evidence-based, not filename-based alone -- users rename
+# files constantly. Content keywords carry more weight than the filename, and
+# a file matching nothing is simply "other", which is never an error.
+#
+# Adding a new document type means adding a block here. No Python changes.
+# =============================================================================
+
+version: 1
+
+# Content keywords are worth this much more than filename keywords.
+content_weight: 2.0
+filename_weight: 1.0
+# Below this total score the document stays "other".
+min_score: 1.0
+
+profiles:
+
+  gst_certificate:
+    description: GST registration certificate (Form GST REG-06)
+    filename_keywords: [gst, reg-06, reg06]
+    content_keywords:
+      - Goods and Services Tax
+      - Form GST REG-06
+      - Registration Certificate
+      - GSTIN
+      - Legal Name
+
+  udyam_certificate:
+    description: Udyam / MSME registration certificate
+    filename_keywords: [udyam, msme]
+    content_keywords:
+      - UDYAM REGISTRATION CERTIFICATE
+      - UDYAM REGISTRATION NUMBER
+      - Ministry of Micro, Small and Medium Enterprises
+      - NAME OF ENTERPRISE
+      - Major Activity
+
+  cancelled_cheque:
+    description: Cancelled cheque leaf
+    filename_keywords: [cheque, check, cancelled]
+    content_keywords:
+      - A/c No
+      - IFS Code
+      - A/C PAYEE
+      - AUTHORISED SIGNATORY
+      - Payable at par
+      - VALID FOR THREE MONTHS
+
+  pan_card:
+    description: PAN card
+    filename_keywords: [pan]
+    content_keywords:
+      - INCOME TAX DEPARTMENT
+      - Permanent Account Number
+      - GOVT. OF INDIA
+
+  bank_statement:
+    description: Bank statement / passbook page
+    filename_keywords: [statement, passbook]
+    content_keywords:
+      - Statement of Account
+      - Opening Balance
+      - Closing Balance
+      - Transaction Date

@@ -1,0 +1,19 @@
+# Runtime data — contains real vendor documents and extracted PII (GSTIN, PAN, bank details)
+/uploads/
+/outputs/
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.venv-paddle/
+
+# Env / secrets
+.env
+
+# Local assistant context notes, not part of this project
+CLAUDE.md

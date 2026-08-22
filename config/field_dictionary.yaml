@@ -1,0 +1,461 @@
+# =============================================================================
+# V2 FIELD DICTIONARY
+# =============================================================================
+# The single source of truth for WHAT to extract. No field-specific logic lives
+# in Python -- the engine reads this file and behaves accordingly, so adding a
+# new field means adding a block here, not writing code.
+#
+# Field keys deliberately match the canonical vendor JSON that V1 already
+# produces, so the existing Excel writer and verifier stay compatible.
+#
+# Per-field keys
+# --------------
+#   description   Human note; shown in reports.
+#   labels        Printed captions to look for. First entry is the canonical
+#                 form; the rest are synonyms. Matched fuzzily, so minor OCR
+#                 damage ("IFS Code" vs "IFSC Code") still hits.
+#   patterns      Regexes the VALUE must/should look like. Strong evidence, but
+#                 never the sole decider -- a document is full of 10-digit
+#                 numbers that are not phone numbers.
+#   normalization Ops applied to the raw value, in order. See config_loader
+#                 KNOWN_NORMALIZERS.
+#   validators    Names defined in validation_rules.yaml.
+#   search        Where the value sits relative to its label.
+#   expected_documents  Soft hint used to break ties, not a hard filter: a
+#                 GSTIN found on the cheque is still a GSTIN.
+#   priority      Tie-break weight when two fields claim the same span.
+#   required      Drives needs_review when missing.
+#   cross_document_consistency  Compare this field across documents and flag
+#                 disagreement (e.g. vendor name on GST vs Udyam vs cheque).
+# =============================================================================
+
+version: 1
+
+# Defaults applied to every field unless the field overrides them. Tuning these
+# retunes the whole engine, which is the point.
+defaults:
+  label_match:
+    # RapidFuzz ratio below which a caption is not considered a label hit.
+    min_similarity: 0.82
+    # Ignore label candidates longer than this many characters; real captions
+    # are short, and long spans are usually prose that happens to contain the word.
+    max_label_chars: 60
+  search:
+    # Preference order for where a value sits relative to its label.
+    directions: [right, below]
+    # How far from the label to look, as a multiple of the label's height.
+    # Values further away than this are not considered.
+    max_distance: 12.0
+    # A value on the same visual line as its label is the strongest layout
+    # signal there is; weight it above a merely-nearby span.
+    same_line_bonus: 0.25
+  confidence:
+    # Weights combined into the final field score. Must sum to 1.0.
+    weights:
+      label_similarity: 0.35
+      spatial_proximity: 0.25
+      pattern_match: 0.30
+      ocr_confidence: 0.10
+    # Below this, the field goes to needs_review rather than being trusted.
+    min_accept: 0.60
+  priority: 50
+  required: false
+  cross_document_consistency: false
+
+fields:
+
+  # ---------------------------------------------------------------------------
+  # IDENTITY
+  # ---------------------------------------------------------------------------
+  vendor_name:
+    description: Registered legal name of the business
+    labels:
+      - Legal Name
+      - Legal Name of Business
+      - Name of Enterprise
+      - Vendor Name
+      - Company Name
+      - Name of Business
+      - Supplier Name
+      - Name of the Enterprise
+    patterns: []          # Names have no fixed shape; label + position decide.
+    normalization: [strip, collapse_spaces]
+    validators: [non_empty]
+    value_type: text
+    expected_documents: [gst_certificate, udyam_certificate]
+    priority: 90
+    required: true
+    cross_document_consistency: true
+
+  company_type:
+    description: Constitution of the business (Pvt Ltd, Proprietorship, ...)
+    labels:
+      - Type of Organisation
+      - Type of Organization
+      - Constitution of Business
+      - Company Type
+      - Organisation Type
+      - Type of Enterprise
+      - Type of Entity
+    patterns: []
+    normalization: [strip, collapse_spaces, titlecase]
+    validators: []
+    value_type: text
+    expected_documents: [udyam_certificate, gst_certificate]
+
+  nature_of_business:
+    description: Primary business activity (Manufacturing / Trading / Service)
+    labels:
+      - Major Activity
+      - Nature of Business
+      - Business Activity
+      - Nature of Business Activity
+      - Type of Activity
+      - Major Activity of Enterprise
+    patterns: []
+    normalization: [strip, collapse_spaces, titlecase]
+    validators: []
+    value_type: text
+    expected_documents: [udyam_certificate]
+
+  # ---------------------------------------------------------------------------
+  # STATUTORY IDENTIFIERS
+  # These have rigid formats, so patterns carry most of the weight and the
+  # validators can be strict.
+  # ---------------------------------------------------------------------------
+  gst_number:
+    description: 15-character GST Identification Number
+    labels:
+      - GSTIN
+      - GST No
+      - GST Number
+      - GST Identification Number
+      - GSTIN/UIN
+      - Goods and Services Tax Identification Number
+      - Registration Number
+    patterns:
+      - '[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]'
+    normalization: [uppercase, remove_spaces]
+    validators: [gstin_format, gstin_contains_pan, gstin_state_code]
+    value_type: alphanumeric
+    expected_documents: [gst_certificate]
+    priority: 100
+    required: true
+    cross_document_consistency: true
+
+  pan:
+    description: 10-character Permanent Account Number
+    labels:
+      - PAN
+      - PAN No
+      - PAN Number
+      - Permanent Account Number
+      - Income Tax PAN
+      - PAN of Enterprise
+    patterns:
+      - '[A-Z]{5}[0-9]{4}[A-Z]'
+    normalization: [uppercase, remove_spaces]
+    validators: [pan_format]
+    value_type: alphanumeric
+    expected_documents: [gst_certificate, udyam_certificate]
+    priority: 95
+    required: true
+    cross_document_consistency: true
+
+  tan:
+    description: 10-character Tax Deduction Account Number
+    labels:
+      - TAN
+      - TAN No
+      - TAN Number
+      - Tax Deduction Account Number
+    patterns:
+      - '[A-Z]{4}[0-9]{5}[A-Z]'
+    normalization: [uppercase, remove_spaces]
+    validators: [tan_format]
+    value_type: alphanumeric
+
+  udyam_number:
+    description: Udyam (MSME) registration number
+    labels:
+      - Udyam Registration Number
+      - UDYAM Number
+      - Udyam No
+      - MSME Registration Number
+      - Udyam Regn No
+      - Registration Number
+    patterns:
+      - 'UDYAM-[A-Z]{2}-[0-9]{2}-[0-9]{7}'
+    normalization: [uppercase, remove_spaces]
+    validators: [udyam_format]
+    value_type: alphanumeric
+    expected_documents: [udyam_certificate]
+    priority: 90
+    cross_document_consistency: true
+
+  esic_number:
+    description: Employees' State Insurance registration number
+    labels:
+      - ESIC
+      - ESIC No
+      - ESIC Number
+      - ESI Number
+      - Employees State Insurance
+    patterns:
+      - '[0-9]{17}'
+    normalization: [remove_spaces, digits_only]
+    validators: [esic_format]
+    value_type: numeric
+
+  # ---------------------------------------------------------------------------
+  # ADDRESS
+  # Address lines are positional rather than semantic: address_3/address_4 exist
+  # only because the Excel template has those rows. They carry no labels of
+  # their own and are filled by the overflow rule in the normalizer.
+  # ---------------------------------------------------------------------------
+  address_1:
+    description: Building / flat number, floor, premises name
+    labels:
+      - Address
+      - Address Line 1
+      - Building No
+      - Flat No
+      - Building No./Flat No.
+      - Name of Premises
+      - Premises
+      - Door No
+    patterns: []
+    normalization: [strip, collapse_spaces]
+    validators: []
+    value_type: text
+    expected_documents: [gst_certificate]
+    search:
+      directions: [right, below]
+
+  address_2:
+    description: Road, street, locality, area
+    labels:
+      - Address Line 2
+      - Road/Street
+      - Street
+      - Locality
+      - Area
+      - Road
+      - Locality/Sub Locality
+    patterns: []
+    normalization: [strip, collapse_spaces]
+    validators: []
+    value_type: text
+
+  address_3:
+    description: Overflow address line (template row only, rarely labelled)
+    labels:
+      - Address Line 3
+    patterns: []
+    normalization: [strip, collapse_spaces]
+    validators: []
+    value_type: text
+    priority: 10
+
+  address_4:
+    description: Overflow address line (template row only, rarely labelled)
+    labels:
+      - Address Line 4
+    patterns: []
+    normalization: [strip, collapse_spaces]
+    validators: []
+    value_type: text
+    priority: 10
+
+  city:
+    description: City / town / village
+    labels:
+      - City
+      - Town
+      - Village
+      - City/Town/Village
+      - District
+    patterns: []
+    normalization: [strip, collapse_spaces, titlecase]
+    validators: []
+    value_type: text
+
+  state:
+    description: Indian state or union territory
+    labels:
+      - State
+      - State Name
+      - State/UT
+    patterns: []
+    normalization: [strip, collapse_spaces, titlecase]
+    validators: [indian_state]
+    value_type: text
+    cross_document_consistency: true
+
+  country:
+    description: Country; defaults to India when absent
+    labels:
+      - Country
+    patterns: []
+    normalization: [strip, titlecase]
+    validators: [country_name]
+    value_type: text
+    default: India
+
+  pin_code:
+    description: 6-digit Indian postal code
+    labels:
+      - PIN Code
+      - Pincode
+      - PIN
+      - Postal Code
+      - ZIP
+      - Pin
+    patterns:
+      - '[1-9][0-9]{5}'
+    normalization: [remove_spaces, digits_only]
+    validators: [pin_format]
+    value_type: numeric
+    required: true
+
+  # ---------------------------------------------------------------------------
+  # CONTACT
+  # ---------------------------------------------------------------------------
+  telephone:
+    description: Primary contact phone / mobile number
+    labels:
+      - Mobile
+      - Mobile No
+      - Phone
+      - Telephone
+      - Contact Number
+      - Contact No
+      - Phone No
+      - Mobile Number
+    patterns:
+      - '(?:\+?91[\-\s]?)?[6-9][0-9]{9}'
+    normalization: [remove_spaces, strip_country_code, digits_only]
+    validators: [indian_phone]
+    value_type: numeric
+    expected_documents: [udyam_certificate]
+
+  email:
+    description: Contact email address
+    labels:
+      - Email
+      - E-Mail
+      - Email ID
+      - Email Address
+      - E-Mail ID
+    patterns:
+      - '[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}'
+    normalization: [lowercase, remove_spaces]
+    validators: [email_format]
+    value_type: email
+    expected_documents: [udyam_certificate]
+
+  website:
+    description: Company website
+    labels:
+      - Website
+      - Web Site
+      - URL
+      - Web Address
+    patterns:
+      # Requires an explicit scheme or "www." prefix. A bare "name.tld" shape
+      # is far too permissive on these documents: it matched "B.CONTROL" out
+      # of "M.B.CONTROL & SYSTEM PVT LTD" and "S.No" out of a table header.
+      # A website that appears without either prefix has to be found via its
+      # label instead.
+      - '(?:https?://|www\.)[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}(?:/\S*)?'
+    normalization: [lowercase, remove_spaces]
+    validators: []
+    value_type: url
+    priority: 20
+
+  # ---------------------------------------------------------------------------
+  # BANKING
+  # Sourced from the cancelled cheque, which is almost always a scan -- so these
+  # carry the highest OCR risk and the strictest validators.
+  # ---------------------------------------------------------------------------
+  bank_name:
+    description: Name of the bank
+    labels:
+      - Bank Name
+      - Name of Bank
+      - Bank
+      - Banker
+    patterns: []
+    normalization: [strip, collapse_spaces]
+    validators: []
+    value_type: text
+    expected_documents: [cancelled_cheque]
+
+  branch_address:
+    description: Branch name and/or address
+    labels:
+      - Branch
+      - Branch Address
+      - Branch Name
+      - Branch Office
+    patterns: []
+    normalization: [strip, collapse_spaces]
+    validators: []
+    value_type: text
+    expected_documents: [cancelled_cheque]
+
+  ifsc:
+    description: 11-character IFSC code
+    labels:
+      - IFSC
+      - IFSC Code
+      - IFS Code
+      - RTGS/NEFT/IFS Code
+      - RTGS / NEFT / IFS Code
+      - NEFT Code
+    patterns:
+      - '[A-Z]{4}0[A-Z0-9]{6}'
+    normalization: [uppercase, remove_spaces, fix_ifsc_confusions]
+    validators: [ifsc_format]
+    value_type: alphanumeric
+    expected_documents: [cancelled_cheque]
+    priority: 95
+    required: true
+
+  account_number:
+    description: Bank account number as printed beside the A/c No. caption
+    labels:
+      - A/c No
+      - Account Number
+      - Account No
+      - Bank Account Number
+      - A/C No
+      - Ac No
+    patterns:
+      - '[0-9]{9,18}'
+    normalization: [remove_spaces, digits_only]
+    validators: [account_number_format]
+    value_type: numeric
+    expected_documents: [cancelled_cheque]
+    priority: 95
+    required: true
+    search:
+      # The MICR band along the bottom of a cheque is a rich source of 9-18
+      # digit numbers that are NOT the account number. Requiring the value to
+      # sit beside its caption is what separates them; a bare regex sweep of
+      # the page cannot.
+      directions: [right, below]
+      max_distance: 6.0
+
+  account_type:
+    description: Current / Savings / Cash Credit
+    labels:
+      - Account Type
+      - Type of Account
+      - A/c Type
+      - Nature of Account
+    patterns:
+      - '(?:CURRENT|SAVINGS|SAVING|CASH CREDIT|CC|OD|OVERDRAFT)'
+    normalization: [strip, uppercase]
+    validators: []
+    value_type: text

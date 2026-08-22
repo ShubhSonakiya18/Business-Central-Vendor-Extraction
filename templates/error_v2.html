@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}V2 - Processing Failed{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card shadow-sm border-danger">
+      <div class="card-body p-4">
+        <h5 class="card-title text-danger mb-3">Processing failed</h5>
+
+        <p class="mb-3">{{ message }}</p>
+
+        {% if hint %}
+        <div class="alert alert-info small mb-3">{{ hint }}</div>
+        {% endif %}
+
+        {% if available_sheets %}
+        <p class="small text-muted mb-1">Sheets present in the template you uploaded:</p>
+        <p class="mb-3">
+          {% for s in available_sheets %}<span class="badge bg-secondary me-1">{{ s }}</span>{% endfor %}
+        </p>
+        {% endif %}
+
+        <details class="mb-3">
+          <summary class="small text-muted">Technical detail</summary>
+          <pre class="small bg-light p-3 mt-2 border rounded" style="white-space: pre-wrap;">{{ detail }}</pre>
+        </details>
+
+        <a href="/v2" class="btn btn-primary">Back to upload</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
