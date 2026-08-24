@@ -10,6 +10,8 @@ Run with:
 """
 
 import json
+import logging
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -19,6 +21,12 @@ from typing import List, Optional
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+)
+logger = logging.getLogger("vendor_extractor")
 
 BASE_DIR = Path(__file__).parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -38,7 +46,40 @@ def _save_upload(upload: UploadFile, dest_dir: Path) -> Path:
     return dest
 
 
-V2_RUNS: dict[str, dict] = {}
+def _run_state_path(run_id: str) -> Path:
+    return OUTPUT_DIR / run_id / "run_state.json"
+
+
+def _save_run(run_id: str, state: dict) -> None:
+    """Persist a completed run so results survive a restart.
+
+    An in-memory dict would grow without bound and, under more than one uvicorn
+    worker, would strand a user on a worker that never saw their run. Everything
+    else about the run is already written under outputs/<run_id>/, so the state
+    belongs there too.
+    """
+    path = _run_state_path(run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _load_run(run_id: str) -> Optional[dict]:
+    """Return a persisted run, or None if the id is unknown.
+
+    run_id comes straight from the URL, so it is confined to the hex ids this
+    app generates before it is used as a path segment -- otherwise a crafted id
+    could walk out of the outputs directory.
+    """
+    if not re.fullmatch(r"[0-9a-f]{10}", run_id):
+        return None
+    path = _run_state_path(run_id)
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.exception("Could not read run state for %s", run_id)
+        return None
 
 
 @app.get("/")
@@ -142,7 +183,7 @@ def v2_process(
         doc_set = load_documents(saved, engine=engine)
         load_seconds = time.perf_counter() - t0
     except Exception:
-        traceback.print_exc()
+        logger.exception("run %s: document loading failed", run_id)
         return _v2_error(
             request,
             "Failed while reading the uploaded documents.",
@@ -206,7 +247,7 @@ def v2_process(
             # Extraction already succeeded and cost real time; losing it to an
             # Excel problem would be the wrong trade. Report the failure and
             # keep the JSON results available.
-            traceback.print_exc()
+            logger.exception("run %s: Excel fill/verify failed", run_id)
             return _v2_error(
                 request,
                 f"Documents were extracted successfully, but filling the Excel "
@@ -216,7 +257,7 @@ def v2_process(
                 sheets=available_sheets,
             )
 
-    V2_RUNS[run_id] = {
+    _save_run(run_id, {
         "fields": {k: v.to_dict() for k, v in result.fields.items()},
         "needs_review": result.needs_review,
         "documents": result.documents,
@@ -229,16 +270,21 @@ def v2_process(
             "extract": round(result.duration_s, 2),
             "total": round(time.perf_counter() - t0, 1),
         },
-    }
+    })
 
+    logger.info(
+        "run %s complete: %d/%d fields filled in %.1fs",
+        run_id, result.summary().get("filled", 0), len(result.fields),
+        time.perf_counter() - t0,
+    )
     return RedirectResponse(url=f"/v2/results/{run_id}", status_code=303)
 
 
 @app.get("/v2/results/{run_id}")
 def v2_results(request: Request, run_id: str):
-    run = V2_RUNS.get(run_id)
+    run = _load_run(run_id)
     if not run:
-        return RedirectResponse(url="/v2")
+        return RedirectResponse(url="/")
     return templates.TemplateResponse(
         request,
         "results_v2.html",
@@ -258,9 +304,9 @@ def v2_results(request: Request, run_id: str):
 
 @app.get("/v2/download/{run_id}/{kind}")
 def v2_download(run_id: str, kind: str):
-    run = V2_RUNS.get(run_id)
+    run = _load_run(run_id)
     if not run or kind not in run["files"]:
-        return RedirectResponse(url="/v2")
+        return RedirectResponse(url="/")
     path = run["files"][kind]
     return FileResponse(path, filename=Path(path).name)
 
