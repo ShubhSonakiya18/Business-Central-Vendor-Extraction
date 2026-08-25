@@ -6,8 +6,8 @@ backend/app/logs/
 # Ground truth for real vendors transcribes the same PII as the source documents
 # (GSTIN, PAN, bank account numbers). Git history is permanent, so only the
 # synthetic example is tracked; real vendor files stay local.
-backend/eval/ground_truth/*.yaml
-!backend/eval/ground_truth/example_synthetic.yaml
+backend/app/eval/ground_truth/*.yaml
+!backend/app/eval/ground_truth/example_synthetic.yaml
 
 # Logs
 *.log

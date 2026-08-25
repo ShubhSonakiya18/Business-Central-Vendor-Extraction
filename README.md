@@ -79,7 +79,7 @@ backend/app/                        HTTP layer
 ├── models/  database/  schemas/    Reserved for the auth layer — not yet implemented
 └── uploads/  outputs/  logs/       Runtime data, gitignored
 
-backend/vendor_extractor/           The pipeline
+backend/extraction_pipeline/        The pipeline
 ├── models.py                       Common document representation (spans, bboxes, pages)
 ├── config_loader.py                Strict YAML loader for the field dictionary & rules
 ├── pipeline.py                     Wires the stages end to end; CLI entry point
@@ -96,11 +96,11 @@ backend/vendor_extractor/           The pipeline
     ├── excel_mapper.py             Fills a template from a YAML cell map
     └── verifier.py                 Reopens the saved file, diffs every cell, colours PASS/FAIL
 
-backend/cli/                        Command-line entry points
+backend/app/cli/                    Command-line entry points
 ├── check_config.py                 Validate the YAML config, no OCR needed
 └── dump_ocr.py                     Inspect raw OCR/document output
 
-backend/eval/                       Accuracy measurement against human-verified ground truth
+backend/app/eval/                   Accuracy measurement against human-verified ground truth
 backend/tests/                      Unit tests (no OCR — fast)
 
 backend/config/                     The pipeline's field knowledge — edit this, not Python, to change behaviour
@@ -196,17 +196,17 @@ Run these from `backend/`, with the venv activated.
 
 ```bash
 # Validate the YAML config (fast, no OCR)
-python -m cli.check_config
+python -m app.cli.check_config
 
 # Inspect raw OCR/document output for a file or folder
-python -m cli.dump_ocr path/to/documents --out outputs/inspect
+python -m app.cli.dump_ocr path/to/documents --out outputs/inspect
 
 # Run the full pipeline end to end
-python -m vendor_extractor.pipeline path/to/documents \
+python -m extraction_pipeline.pipeline path/to/documents \
   --template "Vendor Form.xlsx" --sheet Sheet1 --out outputs/run
 
 # Re-run extraction against a previously saved document set (skips OCR entirely)
-python -m vendor_extractor.pipeline --cache outputs/inspect/document_set.json --out outputs/run
+python -m extraction_pipeline.pipeline --cache outputs/inspect/document_set.json --out outputs/run
 
 # Unit tests (no OCR — fast)
 pip install -r requirements-dev.txt
@@ -217,7 +217,7 @@ pytest
 
 ## Known limitations
 
-- **Throughput**: scanned pages run ~10–35s each on CPU (PaddlePaddle's oneDNN acceleration is disabled to work around a CPU executor crash in PaddlePaddle 3.3.1 — see `backend/vendor_extractor/ingest/ocr_engine.py`). Fine for single-vendor use; page-level parallelism would be the next step for batch processing.
+- **Throughput**: scanned pages run ~10–35s each on CPU (PaddlePaddle's oneDNN acceleration is disabled to work around a CPU executor crash in PaddlePaddle 3.3.1 — see `backend/extraction_pipeline/ingest/ocr_engine.py`). Fine for single-vendor use; page-level parallelism would be the next step for batch processing.
 - **Bank name** is not reliably extractable from a cheque scan alone — cheques don't caption their own bank name, and OCR reads the logo as garbled text. An IFSC-prefix → bank-name lookup table is the planned fix, not yet implemented.
 - **DOCX geometry is synthetic**: since Word documents carry no pixel coordinates, the pipeline lays text out on a synthesized canvas to preserve caption/value adjacency. This works for the matching engine but bounding boxes in DOCX output aren't real page positions.
 - `backend/requirements.txt` pins the versions this was built and tested against; PaddleOCR/PaddlePaddle version bumps are not guaranteed compatible without re-testing.

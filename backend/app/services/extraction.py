@@ -1,6 +1,6 @@
 """Pipeline orchestration for the web app.
 
-Sits between the HTTP layer and vendor_extractor so the route stays a route:
+Sits between the HTTP layer and extraction_pipeline so the route stays a route:
 this module knows the order of the work and what a failure means to a user,
 and raises PipelineError rather than returning a response, which keeps
 rendering decisions in one place.
@@ -111,9 +111,9 @@ def check_requested_sheets(template: Optional[Path], sheet_names: list[str]) -> 
 
 def extract(documents: list[Path], run_dir: Path, models: str):
     """OCR and extract. Returns (result, canonical, load_seconds, started_at)."""
-    from vendor_extractor.ingest.document_loader import load_documents
-    from vendor_extractor.ingest.ocr_engine import OCREngine
-    from vendor_extractor.pipeline import extract_from_document_set
+    from extraction_pipeline.ingest.document_loader import load_documents
+    from extraction_pipeline.ingest.ocr_engine import OCREngine
+    from extraction_pipeline.pipeline import extract_from_document_set
 
     started_at = time.perf_counter()
     try:
@@ -163,8 +163,8 @@ def fill_and_verify(
     come from the same extraction, so a misread value passes. Accuracy is
     eval/eval_extraction.py's job.
     """
-    from vendor_extractor.excel.excel_mapper import ExcelMapper
-    from vendor_extractor.excel.verifier import summarize, verify_excel
+    from extraction_pipeline.excel.excel_mapper import ExcelMapper
+    from extraction_pipeline.excel.verifier import summarize, verify_excel
 
     try:
         mapper = ExcelMapper.load(mapping)

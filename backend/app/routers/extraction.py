@@ -42,7 +42,7 @@ def render_error(request: Request, error: PipelineError):
 
 @router.get("/")
 def home(request: Request):
-    from vendor_extractor.excel.excel_mapper import ExcelMapper
+    from extraction_pipeline.excel.excel_mapper import ExcelMapper
 
     return templates.TemplateResponse(
         request,
@@ -126,8 +126,8 @@ async def template_sheets(vendor_template: UploadFile = File(...)):
 @router.get("/health")
 def health():
     """Confirms the local stack is importable and reports what is configured."""
-    from vendor_extractor.config_loader import load_config
-    from vendor_extractor.excel.excel_mapper import ExcelMapper
+    from extraction_pipeline.config_loader import load_config
+    from extraction_pipeline.excel.excel_mapper import ExcelMapper
 
     dictionary, rules = load_config()
     return {
