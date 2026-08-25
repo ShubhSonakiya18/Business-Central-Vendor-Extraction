@@ -1,0 +1,11 @@
+# Development and test dependencies.
+#
+# From the repository root:
+#   pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+#
+# Then run the suite from backend/, where pytest.ini lives:
+#   cd backend && pytest
+
+-r requirements.txt
+
+pytest==9.1.1

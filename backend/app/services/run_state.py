@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from .settings import OUTPUT_DIR
+from ..config.settings import OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 

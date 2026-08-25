@@ -10,8 +10,8 @@ import shutil
 
 import pytest
 
-from web import run_state as web
-from web.settings import OUTPUT_DIR
+from app.config.settings import OUTPUT_DIR
+from app.services import run_state as web
 
 
 @pytest.fixture

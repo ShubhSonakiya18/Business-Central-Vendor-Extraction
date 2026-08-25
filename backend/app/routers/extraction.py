@@ -1,7 +1,7 @@
 """HTTP endpoints.
 
 Handlers stay thin: parse the request, call services, render. Anything that
-knows the order of the pipeline work lives in services.py.
+knows the order of the pipeline work lives in app/services/extraction.py.
 """
 
 from __future__ import annotations
@@ -15,9 +15,10 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import run_state, services
-from .services import PipelineError
-from .settings import DEFAULT_MAPPING, DEFAULT_OCR_MODELS, TEMPLATE_DIR
+from ..config.settings import DEFAULT_MAPPING, DEFAULT_OCR_MODELS, TEMPLATE_DIR
+from ..services import extraction as services
+from ..services import run_state
+from ..services.extraction import PipelineError
 
 logger = logging.getLogger(__name__)
 

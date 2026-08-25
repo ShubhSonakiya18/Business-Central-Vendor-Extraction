@@ -1,12 +1,13 @@
 # Runtime data — contains real vendor documents and extracted PII (GSTIN, PAN, bank details)
-/uploads/
-/outputs/
+backend/app/uploads/
+backend/app/outputs/
+backend/app/logs/
 
 # Ground truth for real vendors transcribes the same PII as the source documents
 # (GSTIN, PAN, bank account numbers). Git history is permanent, so only the
 # synthetic example is tracked; real vendor files stay local.
-/eval/ground_truth/*.yaml
-!/eval/ground_truth/example_synthetic.yaml
+backend/eval/ground_truth/*.yaml
+!backend/eval/ground_truth/example_synthetic.yaml
 
 # Logs
 *.log
@@ -17,6 +18,7 @@ __pycache__/
 .venv/
 venv/
 .venv-paddle/
+.pytest_cache/
 
 # Editor / IDE
 .vscode/

@@ -19,7 +19,7 @@ from typing import Optional
 from fastapi import UploadFile
 
 from . import run_state
-from .settings import UPLOAD_DIR
+from ..config.settings import UPLOAD_DIR
 
 logger = logging.getLogger(__name__)
 
