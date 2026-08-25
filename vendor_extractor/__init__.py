@@ -20,8 +20,8 @@ from .models import (
     TableRef,
     TextSpan,
 )
-from .document_loader import load_document, load_documents
-from .ocr_engine import OCREngine
+from .ingest.document_loader import load_document, load_documents
+from .ingest.ocr_engine import OCREngine
 from .config_loader import (
     ConfigError,
     FieldDictionary,

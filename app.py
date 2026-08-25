@@ -84,17 +84,17 @@ def _load_run(run_id: str) -> Optional[dict]:
 
 @app.get("/")
 def v2_home(request: Request):
-    from v2.excel_mapper import ExcelMapper
+    from vendor_extractor.excel.excel_mapper import ExcelMapper
 
     return templates.TemplateResponse(
-        request, "index_v2.html", {"mappings": ExcelMapper.available() or ["vendor_creation_v1"]}
+        request, "index.html", {"mappings": ExcelMapper.available() or ["vendor_creation_v1"]}
     )
 
 
 def _v2_error(request: Request, message: str, detail: str = "", hint: str = "", sheets=None):
     return templates.TemplateResponse(
         request,
-        "error_v2.html",
+        "error.html",
         {"message": message, "detail": detail, "hint": hint, "available_sheets": sheets or []},
         status_code=400,
     )
@@ -119,11 +119,11 @@ def v2_process(
 
     import openpyxl
 
-    from v2.document_loader import load_documents
-    from v2.excel_mapper import ExcelMapper
-    from v2.ocr_engine import OCREngine
-    from v2.pipeline import extract_from_document_set
-    from v2.verifier import summarize, verify_excel
+    from vendor_extractor.ingest.document_loader import load_documents
+    from vendor_extractor.excel.excel_mapper import ExcelMapper
+    from vendor_extractor.ingest.ocr_engine import OCREngine
+    from vendor_extractor.pipeline import extract_from_document_set
+    from vendor_extractor.excel.verifier import summarize, verify_excel
 
     run_id = uuid.uuid4().hex[:10]
     run_upload_dir = UPLOAD_DIR / run_id
@@ -287,7 +287,7 @@ def v2_results(request: Request, run_id: str):
         return RedirectResponse(url="/")
     return templates.TemplateResponse(
         request,
-        "results_v2.html",
+        "results.html",
         {
             "run_id": run_id,
             "fields": run["fields"],
@@ -335,8 +335,8 @@ async def v2_template_sheets(vendor_template: UploadFile = File(...)):
 @app.get("/v2/health")
 def v2_health():
     """Confirms the local stack is importable and reports what is configured."""
-    from v2.config_loader import load_config
-    from v2.excel_mapper import ExcelMapper
+    from vendor_extractor.config_loader import load_config
+    from vendor_extractor.excel.excel_mapper import ExcelMapper
 
     dictionary, rules = load_config()
     return {

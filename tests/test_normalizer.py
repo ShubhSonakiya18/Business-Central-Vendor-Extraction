@@ -7,7 +7,7 @@ match everywhere downstream.
 
 import pytest
 
-from v2.normalizer import NORMALIZERS, clean_label, normalize, strip_value_prefix
+from vendor_extractor.extract.normalizer import NORMALIZERS, clean_label, normalize, strip_value_prefix
 
 
 class TestBasicOps:
@@ -109,6 +109,6 @@ class TestStripValuePrefix:
 def test_registry_matches_declared_contract():
     """config_loader.KNOWN_NORMALIZERS is the declared contract; this module is
     its implementation. Drift between them is only caught at runtime."""
-    from v2.config_loader import KNOWN_NORMALIZERS
+    from vendor_extractor.config_loader import KNOWN_NORMALIZERS
 
     assert set(NORMALIZERS) == set(KNOWN_NORMALIZERS)

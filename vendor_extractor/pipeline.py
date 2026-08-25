@@ -8,9 +8,9 @@ End-to-end, fully local:
 
 Every stage is importable on its own; this module is the wiring plus a CLI.
 
-    python -m v2.pipeline uploads/861b7dc254 --out outputs/v2_run
-    python -m v2.pipeline --cache outputs/v2_ocr/document_set.json --out outputs/v2_run
-    python -m v2.pipeline uploads/861b7dc254 --template form.xlsx --sheet Sheet1
+    python -m vendor_extractor.pipeline uploads/861b7dc254 --out outputs/run
+    python -m vendor_extractor.pipeline --cache outputs/ocr_dump/document_set.json --out outputs/run
+    python -m vendor_extractor.pipeline uploads/861b7dc254 --template form.xlsx --sheet Sheet1
 """
 
 from __future__ import annotations
@@ -24,10 +24,10 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from .config_loader import FieldDictionary, ValidationRules, load_config
-from .document_loader import IMAGE_SUFFIXES, load_documents
+from .ingest.document_loader import IMAGE_SUFFIXES, load_documents
 from .models import DocumentSet, ExtractionResult
-from .ocr_engine import OCREngine
-from .semantic_engine import DocumentClassifier, SemanticEngine
+from .ingest.ocr_engine import OCREngine
+from .extract.semantic_engine import DocumentClassifier, SemanticEngine
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="V2 local vendor extraction pipeline")
     parser.add_argument("inputs", nargs="*", help="Files and/or directories")
     parser.add_argument("--cache", help="Reuse a saved document_set.json instead of re-running OCR")
-    parser.add_argument("--out", default="outputs/v2_run", help="Output directory")
+    parser.add_argument("--out", default="outputs/run", help="Output directory")
     parser.add_argument("--models", choices=["small", "medium", "tiny"], default="small")
     parser.add_argument("--force-ocr", action="store_true")
     parser.add_argument("--template", help="Excel template to fill")
@@ -180,8 +180,8 @@ def main() -> int:
 
     # Optional Excel fill + verification (Steps 8-9).
     if args.template:
-        from .excel_mapper import ExcelMapper
-        from .verifier import verify_excel
+        from .excel.excel_mapper import ExcelMapper
+        from .excel.verifier import verify_excel
 
         mapper = ExcelMapper.load(args.mapping)
         xlsx_out = out_dir / "vendor_filled.xlsx"

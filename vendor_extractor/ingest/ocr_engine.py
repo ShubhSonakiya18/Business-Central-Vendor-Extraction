@@ -22,7 +22,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from .models import BBox, SpanSource, TextSpan
+from ..models import BBox, SpanSource, TextSpan
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # can be re-enabled from outside once upstream fixes the executor.
 os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
 
-# PaddleOCR is imported lazily so that importing v2.models / document_loader
+# PaddleOCR is imported lazily so that importing models / document_loader
 # (e.g. for a DOCX-only run, or in tests) does not pay the paddle import cost.
 _ENGINE_CACHE: dict[tuple, Any] = {}
 

@@ -1,7 +1,7 @@
 """
 Step 4 harness: validate the field dictionary and prove it against real data.
 
-    python -m v2.check_config
+    python -m cli.check_config
 
 Two checks, each of which can fail the run:
 
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import sys
 
-from .config_loader import ConfigError, load_config
+from vendor_extractor.config_loader import ConfigError, load_config
 
 # Real values read off the sample documents during the Step 3 OCR run, plus
 # values that must NOT match. The negatives matter: the cheque's MICR band

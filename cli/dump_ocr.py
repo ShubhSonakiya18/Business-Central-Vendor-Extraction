@@ -1,8 +1,8 @@
 """
 Step 3 harness: run the loader over real documents and dump raw output.
 
-    python -m v2.dump_ocr uploads/861b7dc254 --out outputs/v2_ocr
-    python -m v2.dump_ocr a.pdf b.docx --out outputs/v2_ocr --force-ocr
+    python -m cli.dump_ocr uploads/861b7dc254 --out outputs/ocr_dump
+    python -m cli.dump_ocr a.pdf b.docx --out outputs/ocr_dump --force-ocr
 
 Writes one JSON per document plus a combined `document_set.json`, and prints
 a per-span table (text, bbox, page, confidence) so OCR quality can be eyeballed
@@ -18,9 +18,9 @@ import sys
 import time
 from pathlib import Path
 
-from .document_loader import IMAGE_SUFFIXES, load_documents
-from .models import RENDER_DPI
-from .ocr_engine import OCREngine
+from vendor_extractor.ingest.document_loader import IMAGE_SUFFIXES, load_documents
+from vendor_extractor.models import RENDER_DPI
+from vendor_extractor.ingest.ocr_engine import OCREngine
 
 SUPPORTED = {".pdf", ".docx"} | IMAGE_SUFFIXES
 
@@ -39,7 +39,7 @@ def collect_inputs(paths: list[str]) -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="V2 Step 3: dump raw document/OCR output")
     parser.add_argument("inputs", nargs="+", help="Files and/or directories")
-    parser.add_argument("--out", default="outputs/v2_ocr", help="Output directory")
+    parser.add_argument("--out", default="outputs/ocr_dump", help="Output directory")
     parser.add_argument("--force-ocr", action="store_true", help="Ignore PDF text layers")
     parser.add_argument("--dpi", type=int, default=RENDER_DPI)
     parser.add_argument("--max-print", type=int, default=25, help="Spans to print per document")

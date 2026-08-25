@@ -19,7 +19,7 @@ from typing import Optional
 import openpyxl
 import yaml
 
-from .config_loader import CONFIG_DIR
+from ..config_loader import CONFIG_DIR
 
 logger = logging.getLogger(__name__)
 

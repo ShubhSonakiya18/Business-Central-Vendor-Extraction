@@ -11,8 +11,8 @@ import re
 
 import pytest
 
-from v2.config_loader import CrossDocumentSpec, ValidationRules, ValidatorSpec, load_config
-from v2.validator import Validator
+from vendor_extractor.config_loader import CrossDocumentSpec, ValidationRules, ValidatorSpec, load_config
+from vendor_extractor.extract.validator import Validator
 
 
 def spec(name, **kw):

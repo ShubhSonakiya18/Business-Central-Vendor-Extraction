@@ -177,10 +177,10 @@ def summarize(results: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 
 def extract_v2(document_dir: Path, models: str = "small", cache: Optional[Path] = None) -> dict:
-    from v2.document_loader import load_documents
-    from v2.models import DocumentSet
-    from v2.ocr_engine import OCREngine
-    from v2.pipeline import collect_inputs, extract_from_document_set
+    from vendor_extractor.ingest.document_loader import load_documents
+    from vendor_extractor.models import DocumentSet
+    from vendor_extractor.ingest.ocr_engine import OCREngine
+    from vendor_extractor.pipeline import collect_inputs, extract_from_document_set
 
     if cache and cache.exists():
         print(f"  using cached document set: {cache}")

@@ -33,7 +33,7 @@ os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
 import numpy as np
 import pypdfium2 as pdfium
 
-from v2.models import PDF_POINTS_PER_INCH, RENDER_DPI
+from vendor_extractor.models import PDF_POINTS_PER_INCH, RENDER_DPI
 
 
 def render_page(path: str, dpi: int, page_index: int = 0) -> np.ndarray:

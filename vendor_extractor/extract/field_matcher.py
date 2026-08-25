@@ -28,9 +28,9 @@ from typing import Optional
 
 from rapidfuzz import fuzz
 
-from .config_loader import FieldSpec
-from .layout_engine import DocumentLayout, PageLayout
-from .models import TextSpan
+from ..config_loader import FieldSpec
+from ..ingest.layout_engine import DocumentLayout, PageLayout
+from ..models import TextSpan
 from .normalizer import clean_label, normalize, strip_value_prefix
 
 # A candidate value that is itself a caption for some other field is almost

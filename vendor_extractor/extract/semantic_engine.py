@@ -19,10 +19,10 @@ from typing import Optional
 
 import yaml
 
-from .config_loader import CONFIG_DIR, FieldDictionary, ValidationRules
+from ..config_loader import CONFIG_DIR, FieldDictionary, ValidationRules
 from .field_matcher import KIND_RANK, Candidate, FieldMatcher
-from .layout_engine import DocumentLayout
-from .models import Document, DocumentSet, ExtractionResult, FieldResult
+from ..ingest.layout_engine import DocumentLayout
+from ..models import Document, DocumentSet, ExtractionResult, FieldResult
 from .validator import Validator
 
 logger = logging.getLogger(__name__)

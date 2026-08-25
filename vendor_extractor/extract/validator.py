@@ -18,7 +18,7 @@ from typing import Callable, Optional
 
 from rapidfuzz import fuzz
 
-from .config_loader import ValidationRules, ValidatorSpec
+from ..config_loader import ValidationRules, ValidatorSpec
 
 # GST state codes 01-38 are assigned; the rest are unallocated.
 _VALID_STATE_CODES = {f"{i:02d}" for i in range(1, 39)}

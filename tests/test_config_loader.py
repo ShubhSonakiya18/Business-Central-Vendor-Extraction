@@ -11,7 +11,7 @@ import textwrap
 import pytest
 import yaml
 
-from v2.config_loader import ConfigError, load_config
+from vendor_extractor.config_loader import ConfigError, load_config
 
 
 @pytest.fixture

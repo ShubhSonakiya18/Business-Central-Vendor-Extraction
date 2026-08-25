@@ -11,8 +11,8 @@ import openpyxl
 import pytest
 import yaml
 
-from v2.excel_mapper import ExcelMapper
-from v2.verifier import _normalize, summarize, verify_excel
+from vendor_extractor.excel.excel_mapper import ExcelMapper
+from vendor_extractor.excel.verifier import _normalize, summarize, verify_excel
 
 
 @pytest.fixture

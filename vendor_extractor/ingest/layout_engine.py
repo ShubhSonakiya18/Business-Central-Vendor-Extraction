@@ -17,7 +17,7 @@ from typing import Iterable, Optional
 
 import numpy as np
 
-from .models import BBox, Document, Page, TextSpan
+from ..models import BBox, Document, Page, TextSpan
 
 
 @dataclass

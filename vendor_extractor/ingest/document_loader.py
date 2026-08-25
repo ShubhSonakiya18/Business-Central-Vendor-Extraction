@@ -33,7 +33,7 @@ from typing import Iterable, Optional
 
 import numpy as np
 
-from .models import (
+from ..models import (
     PDF_POINTS_PER_INCH,
     RENDER_DPI,
     BBox,
