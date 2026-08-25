@@ -1,12 +1,20 @@
 """
-V2: fully local, offline vendor document extraction.
+Fully local, offline vendor document extraction.
 
-No cloud APIs. Document understanding is PaddleOCR + native parsers, and
-field identification (added in later steps) is a deterministic local engine
-driven by YAML configuration rather than hardcoded per-document logic.
+No cloud APIs and no network calls: document understanding is PaddleOCR plus
+native parsers, and field identification is a deterministic local engine driven
+by YAML configuration rather than hardcoded per-document logic.
 
-Implemented so far: Steps 1-4 -- common document representation, PaddleOCR
-wrapper, multi-document loading, and the YAML-driven field dictionary.
+Modules are grouped by the stage they belong to, following the data flow:
+
+    models.py, config_loader.py   shared by every stage
+    pipeline.py                   orchestration, end to end
+    ingest/                       documents -> common representation
+    extract/                      spans -> judged field values
+    excel/                        result -> filled and verified workbook
+
+The package carries no web-framework dependencies, so the web app, the CLI
+entry points and the eval harness all drive it the same way.
 """
 
 from .models import (
