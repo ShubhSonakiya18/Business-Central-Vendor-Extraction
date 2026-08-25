@@ -23,7 +23,10 @@ from typing import Optional
 
 import yaml
 
-CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+# backend/app/services/extraction_pipeline/config_loader.py -> backend/config
+# parents: [0] extraction_pipeline  [1] services  [2] app  [3] backend
+# This index is tied to the package's depth: move the package and it must change.
+CONFIG_DIR = Path(__file__).resolve().parents[3] / "config"
 
 # Ops the normalizer (Step 6) implements. Declared here so a typo in YAML is a
 # load-time error rather than a silently skipped transformation.

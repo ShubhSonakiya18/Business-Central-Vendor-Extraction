@@ -11,7 +11,7 @@ import textwrap
 import pytest
 import yaml
 
-from extraction_pipeline.config_loader import ConfigError, load_config
+from app.services.extraction_pipeline.config_loader import ConfigError, load_config
 
 
 @pytest.fixture

@@ -11,8 +11,8 @@ import openpyxl
 import pytest
 import yaml
 
-from extraction_pipeline.excel.excel_mapper import ExcelMapper
-from extraction_pipeline.excel.verifier import _normalize, summarize, verify_excel
+from app.services.extraction_pipeline.excel.excel_mapper import ExcelMapper
+from app.services.extraction_pipeline.excel.verifier import _normalize, summarize, verify_excel
 
 
 @pytest.fixture

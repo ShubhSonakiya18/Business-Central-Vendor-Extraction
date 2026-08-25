@@ -8,9 +8,9 @@ End-to-end, fully local:
 
 Every stage is importable on its own; this module is the wiring plus a CLI.
 
-    python -m extraction_pipeline.pipeline uploads/861b7dc254 --out outputs/run
-    python -m extraction_pipeline.pipeline --cache outputs/ocr_dump/document_set.json --out outputs/run
-    python -m extraction_pipeline.pipeline uploads/861b7dc254 --template form.xlsx --sheet Sheet1
+    python -m app.services.extraction_pipeline.pipeline uploads/861b7dc254 --out outputs/run
+    python -m app.services.extraction_pipeline.pipeline --cache outputs/ocr_dump/document_set.json --out outputs/run
+    python -m app.services.extraction_pipeline.pipeline uploads/861b7dc254 --template form.xlsx --sheet Sheet1
 """
 
 from __future__ import annotations

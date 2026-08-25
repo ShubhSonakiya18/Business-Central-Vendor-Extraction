@@ -74,12 +74,15 @@ backend/
 backend/app/                        HTTP layer
 ├── config/settings.py              Paths, defaults, logging config
 ├── routers/extraction.py           Endpoints (thin: parse, call services, render)
-├── services/extraction.py          Pipeline orchestration and user-facing failures
+├── services/extraction.py          Web adapter: orchestration and user-facing failures
 ├── services/run_state.py           Per-run persistence under app/outputs/<run_id>/
+├── services/extraction_pipeline/   The pipeline itself — detailed below
 ├── models/  database/  schemas/    Reserved for the auth layer — not yet implemented
 └── uploads/  outputs/  logs/       Runtime data, gitignored
 
-backend/extraction_pipeline/        The pipeline
+backend/app/services/extraction_pipeline/   The pipeline
+                                    Pure domain logic — no FastAPI/Jinja imports, so the
+                                    CLI, eval harness and tests drive it without a server
 ├── models.py                       Common document representation (spans, bboxes, pages)
 ├── config_loader.py                Strict YAML loader for the field dictionary & rules
 ├── pipeline.py                     Wires the stages end to end; CLI entry point
@@ -202,11 +205,11 @@ python -m app.cli.check_config
 python -m app.cli.dump_ocr path/to/documents --out outputs/inspect
 
 # Run the full pipeline end to end
-python -m extraction_pipeline.pipeline path/to/documents \
+python -m app.services.extraction_pipeline.pipeline path/to/documents \
   --template "Vendor Form.xlsx" --sheet Sheet1 --out outputs/run
 
 # Re-run extraction against a previously saved document set (skips OCR entirely)
-python -m extraction_pipeline.pipeline --cache outputs/inspect/document_set.json --out outputs/run
+python -m app.services.extraction_pipeline.pipeline --cache outputs/inspect/document_set.json --out outputs/run
 
 # Unit tests (no OCR — fast)
 pip install -r requirements-dev.txt
@@ -217,7 +220,7 @@ pytest
 
 ## Known limitations
 
-- **Throughput**: scanned pages run ~10–35s each on CPU (PaddlePaddle's oneDNN acceleration is disabled to work around a CPU executor crash in PaddlePaddle 3.3.1 — see `backend/extraction_pipeline/ingest/ocr_engine.py`). Fine for single-vendor use; page-level parallelism would be the next step for batch processing.
+- **Throughput**: scanned pages run ~10–35s each on CPU (PaddlePaddle's oneDNN acceleration is disabled to work around a CPU executor crash in PaddlePaddle 3.3.1 — see `backend/app/services/extraction_pipeline/ingest/ocr_engine.py`). Fine for single-vendor use; page-level parallelism would be the next step for batch processing.
 - **Bank name** is not reliably extractable from a cheque scan alone — cheques don't caption their own bank name, and OCR reads the logo as garbled text. An IFSC-prefix → bank-name lookup table is the planned fix, not yet implemented.
 - **DOCX geometry is synthetic**: since Word documents carry no pixel coordinates, the pipeline lays text out on a synthesized canvas to preserve caption/value adjacency. This works for the matching engine but bounding boxes in DOCX output aren't real page positions.
 - `backend/requirements.txt` pins the versions this was built and tested against; PaddleOCR/PaddlePaddle version bumps are not guaranteed compatible without re-testing.

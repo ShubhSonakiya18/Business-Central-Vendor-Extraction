@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import sys
 
-from extraction_pipeline.config_loader import ConfigError, load_config
+from app.services.extraction_pipeline.config_loader import ConfigError, load_config
 
 # Real values read off the sample documents during the Step 3 OCR run, plus
 # values that must NOT match. The negatives matter: the cheque's MICR band

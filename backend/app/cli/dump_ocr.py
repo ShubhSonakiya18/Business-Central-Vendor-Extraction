@@ -18,9 +18,9 @@ import sys
 import time
 from pathlib import Path
 
-from extraction_pipeline.ingest.document_loader import IMAGE_SUFFIXES, load_documents
-from extraction_pipeline.models import RENDER_DPI
-from extraction_pipeline.ingest.ocr_engine import OCREngine
+from app.services.extraction_pipeline.ingest.document_loader import IMAGE_SUFFIXES, load_documents
+from app.services.extraction_pipeline.models import RENDER_DPI
+from app.services.extraction_pipeline.ingest.ocr_engine import OCREngine
 
 SUPPORTED = {".pdf", ".docx"} | IMAGE_SUFFIXES
 

@@ -111,9 +111,9 @@ def check_requested_sheets(template: Optional[Path], sheet_names: list[str]) -> 
 
 def extract(documents: list[Path], run_dir: Path, models: str):
     """OCR and extract. Returns (result, canonical, load_seconds, started_at)."""
-    from extraction_pipeline.ingest.document_loader import load_documents
-    from extraction_pipeline.ingest.ocr_engine import OCREngine
-    from extraction_pipeline.pipeline import extract_from_document_set
+    from app.services.extraction_pipeline.ingest.document_loader import load_documents
+    from app.services.extraction_pipeline.ingest.ocr_engine import OCREngine
+    from app.services.extraction_pipeline.pipeline import extract_from_document_set
 
     started_at = time.perf_counter()
     try:
@@ -163,8 +163,8 @@ def fill_and_verify(
     come from the same extraction, so a misread value passes. Accuracy is
     eval/eval_extraction.py's job.
     """
-    from extraction_pipeline.excel.excel_mapper import ExcelMapper
-    from extraction_pipeline.excel.verifier import summarize, verify_excel
+    from app.services.extraction_pipeline.excel.excel_mapper import ExcelMapper
+    from app.services.extraction_pipeline.excel.verifier import summarize, verify_excel
 
     try:
         mapper = ExcelMapper.load(mapping)
