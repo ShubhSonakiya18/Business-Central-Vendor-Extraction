@@ -14,7 +14,7 @@
           fields it finds.
         </p>
 
-        <form id="generate-form" action="/v2/process-vendor" method="post" enctype="multipart/form-data">
+        <form id="generate-form" action="/process-vendor" method="post" enctype="multipart/form-data">
 
           <div class="mb-3">
             <label class="form-label">Vendor Documents</label>
@@ -129,7 +129,7 @@
     sheetBox.innerHTML = '<span class="text-muted small">Reading sheet names...</span>';
     const body = new FormData();
     body.append("vendor_template", file);
-    fetch("/v2/template-sheets", { method: "POST", body: body })
+    fetch("/template-sheets", { method: "POST", body: body })
       .then(r => r.json())
       .then(d => renderSheets(d.sheets || []))
       .catch(() => {

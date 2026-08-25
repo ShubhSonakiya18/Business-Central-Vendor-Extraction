@@ -172,14 +172,14 @@
 
 <div class="d-flex gap-2 flex-wrap">
   {% if downloads.xlsx %}
-  <a class="btn btn-primary" href="/v2/download/{{ run_id }}/xlsx">Download filled Excel</a>
+  <a class="btn btn-primary" href="/download/{{ run_id }}/xlsx">Download filled Excel</a>
   {% endif %}
-  <a class="btn btn-outline-secondary" href="/v2/download/{{ run_id }}/json">Canonical JSON</a>
-  <a class="btn btn-outline-secondary" href="/v2/download/{{ run_id }}/extraction">Full extraction metadata</a>
+  <a class="btn btn-outline-secondary" href="/download/{{ run_id }}/json">Canonical JSON</a>
+  <a class="btn btn-outline-secondary" href="/download/{{ run_id }}/extraction">Full extraction metadata</a>
   {% if downloads.report %}
-  <a class="btn btn-outline-secondary" href="/v2/download/{{ run_id }}/report">Verification report</a>
+  <a class="btn btn-outline-secondary" href="/download/{{ run_id }}/report">Verification report</a>
   {% endif %}
-  <a class="btn btn-outline-secondary" href="/v2/download/{{ run_id }}/spans">Raw OCR spans</a>
+  <a class="btn btn-outline-secondary" href="/download/{{ run_id }}/spans">Raw OCR spans</a>
 </div>
 
 {% endblock %}

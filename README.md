@@ -48,24 +48,41 @@ Open `http://127.0.0.1:8000/`.
 
 ## Project layout
 
-```
-app.py                             FastAPI app
+Modules are grouped by the pipeline stage they belong to.
 
-v2/                                 The pipeline
+```
+app.py                             Entrypoint — re-exports web.main:app
+
+web/                                HTTP layer
+├── main.py                         App factory
+├── routes.py                       Endpoints (thin: parse, call services, render)
+├── services.py                     Pipeline orchestration and user-facing failures
+├── run_state.py                    Per-run persistence under outputs/<run_id>/
+└── settings.py                     Paths, defaults, logging config
+
+vendor_extractor/                   The pipeline
 ├── models.py                       Common document representation (spans, bboxes, pages)
-├── ocr_engine.py                   PaddleOCR 3.x wrapper — only module that imports paddleocr
-├── document_loader.py              PDF / image / DOCX → common representation
 ├── config_loader.py                Strict YAML loader for the field dictionary & rules
-├── layout_engine.py                Spatial queries: visual lines, label→value neighbours
-├── field_matcher.py                Scores candidate values per field (label + position + pattern + OCR confidence)
-├── semantic_engine.py              Classifies documents, merges candidates across them
-├── normalizer.py                   Value cleanup ops (uppercase, digit fixes, etc.)
-├── validator.py                    Generic rule executor — regex / length / enum / cross-field
-├── excel_mapper.py                 Fills a template from a YAML cell map
-├── verifier.py                     Reopens the saved file, diffs every cell, colours PASS/FAIL
-├── pipeline.py                     Wires the above end to end; CLI entry point
-├── dump_ocr.py                     CLI: inspect raw OCR/document output
-└── check_config.py                 CLI: validate the YAML config, no OCR needed
+├── pipeline.py                     Wires the stages end to end; CLI entry point
+├── ingest/                         Documents → common representation
+│   ├── ocr_engine.py               PaddleOCR 3.x wrapper — only module that imports paddleocr
+│   ├── document_loader.py          PDF / image / DOCX → common representation
+│   └── layout_engine.py            Spatial queries: visual lines, label→value neighbours
+├── extract/                        Spans → judged field values
+│   ├── field_matcher.py            Scores candidates (label + position + pattern + OCR confidence)
+│   ├── semantic_engine.py          Classifies documents, merges candidates across them
+│   ├── normalizer.py               Value cleanup ops (uppercase, digit fixes, etc.)
+│   └── validator.py                Generic rule executor — regex / length / enum / cross-field
+└── excel/                          Result → workbook
+    ├── excel_mapper.py             Fills a template from a YAML cell map
+    └── verifier.py                 Reopens the saved file, diffs every cell, colours PASS/FAIL
+
+cli/                                Command-line entry points
+├── check_config.py                 Validate the YAML config, no OCR needed
+└── dump_ocr.py                     Inspect raw OCR/document output
+
+eval/                               Accuracy measurement against human-verified ground truth
+tests/                              Unit tests (no OCR — fast)
 
 config/                             The pipeline's field knowledge — edit this, not Python, to change behaviour
 ├── field_dictionary.yaml           24 fields: labels, regex patterns, validators, search rules
@@ -161,24 +178,24 @@ No Python changes are required for any of the above.
 
 ```bash
 # Validate the YAML config (fast, no OCR)
-python -m v2.check_config
+python -m cli.check_config
 
 # Inspect raw OCR/document output for a file or folder
-python -m v2.dump_ocr path/to/documents --out outputs/inspect
+python -m cli.dump_ocr path/to/documents --out outputs/inspect
 
 # Run the full pipeline end to end
-python -m v2.pipeline path/to/documents \
+python -m vendor_extractor.pipeline path/to/documents \
   --template "Vendor Form.xlsx" --sheet Sheet1 --out outputs/run
 
 # Re-run extraction against a previously saved document set (skips OCR entirely)
-python -m v2.pipeline --cache outputs/inspect/document_set.json --out outputs/run
+python -m vendor_extractor.pipeline --cache outputs/inspect/document_set.json --out outputs/run
 ```
 
 ---
 
 ## Known limitations
 
-- **Throughput**: scanned pages run ~10–35s each on CPU (PaddlePaddle's oneDNN acceleration is disabled to work around a CPU executor crash in PaddlePaddle 3.3.1 — see `v2/ocr_engine.py`). Fine for single-vendor use; page-level parallelism would be the next step for batch processing.
+- **Throughput**: scanned pages run ~10–35s each on CPU (PaddlePaddle's oneDNN acceleration is disabled to work around a CPU executor crash in PaddlePaddle 3.3.1 — see `vendor_extractor/ingest/ocr_engine.py`). Fine for single-vendor use; page-level parallelism would be the next step for batch processing.
 - **Bank name** is not reliably extractable from a cheque scan alone — cheques don't caption their own bank name, and OCR reads the logo as garbled text. An IFSC-prefix → bank-name lookup table is the planned fix, not yet implemented.
 - **DOCX geometry is synthetic**: since Word documents carry no pixel coordinates, the pipeline lays text out on a synthesized canvas to preserve caption/value adjacency. This works for the matching engine but bounding boxes in DOCX output aren't real page positions.
 - `requirements.txt` pins the versions this was built and tested against; PaddleOCR/PaddlePaddle version bumps are not guaranteed compatible without re-testing.
