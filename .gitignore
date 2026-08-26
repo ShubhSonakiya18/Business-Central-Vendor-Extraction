@@ -15,5 +15,10 @@ venv/
 # Env / secrets
 .env
 
+# Node / React
+node_modules/
+dist/
+.vite/
+
 # Local assistant context notes, not part of this project
 CLAUDE.md
