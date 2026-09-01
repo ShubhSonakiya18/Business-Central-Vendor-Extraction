@@ -88,6 +88,11 @@ export default function LoginPage() {
         c => c.email.toLowerCase() === email.trim().toLowerCase() && c.password === password
       )
       if (match) {
+        // No real backend session exists yet (see app/routers/auth.py) -- this
+        // is the only record of who "logged in", read back by NavBar so the
+        // header shows the account that was actually used rather than a
+        // fixed name.
+        localStorage.setItem('userEmail', match.email)
         navigate('/dashboard')
       } else {
         setAuthError('Incorrect email or password. Please try again.')
@@ -109,7 +114,7 @@ export default function LoginPage() {
         <div className="login-left-content">
           <div className="login-left-brand">
             <div className="login-left-icon"><MailIcon /></div>
-            <span className="login-left-wordmark">AR Portal</span>
+            <span className="login-left-wordmark">Business Central Portal</span>
           </div>
           <div className="login-left-badge">Netsmartz Infotech (India) Pvt · BC220</div>
 
@@ -144,13 +149,13 @@ export default function LoginPage() {
           {/* Mobile-only brand strip */}
           <div className="login-mobile-brand">
             <div className="login-mobile-icon"><MailIcon /></div>
-            <span className="login-mobile-wordmark">AR Portal</span>
+            <span className="login-mobile-wordmark">Business Central Portal</span>
           </div>
 
           <div className="login-form-header">
             <div className="login-lock-icon"><LockIcon /></div>
             <h1 className="login-form-title">Welcome back</h1>
-            <p className="login-form-sub">Sign in to your AR Portal account</p>
+            <p className="login-form-sub">Sign in to your Business Central Portal account</p>
           </div>
 
           {/* Global auth error */}
@@ -210,7 +215,7 @@ export default function LoginPage() {
             {/* Submit */}
             <button type="submit" className="btn btn-primary btn-full login-submit-btn"
                     id="login-btn" disabled={loading}
-                    aria-label="Log in to AR Portal">
+                    aria-label="Log in to Business Central Portal">
               {loading && <span className="btn-spinner" aria-hidden="true" />}
               <span>{loading ? 'Signing in…' : 'Log in'}</span>
             </button>

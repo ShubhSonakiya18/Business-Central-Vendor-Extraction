@@ -44,13 +44,6 @@ const ACTION_CARDS = [
   },
 ]
 
-function getGreeting() {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 18) return 'Good afternoon'
-  return 'Good evening'
-}
-
 export default function DashboardPage() {
   const navigate = useNavigate()
 
@@ -61,7 +54,7 @@ export default function DashboardPage() {
         <main className="page-content">
 
           <div className="greeting-section fade-up">
-            <h1 className="greeting-heading">{getGreeting()}, Agamjot</h1>
+            <h1 className="greeting-heading">Welcome to Vendor &amp; Customer Onboarding</h1>
             <p className="greeting-sub">Choose what you'd like to create today.</p>
           </div>
 

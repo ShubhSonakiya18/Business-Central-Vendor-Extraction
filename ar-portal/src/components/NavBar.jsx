@@ -9,9 +9,21 @@ const MailIcon = () => (
   </svg>
 )
 
-export default function NavBar({ userName = 'Agamjot Kaur' }) {
+// LoginPage stores the email of whichever hardcoded account was used to sign
+// in (there is no real backend session -- see app/routers/auth.py). Turn
+// "agamjot@netsmartz.com" into "Agamjot" for display; a name typed via the
+// userName prop always wins, and a direct visit with no login (no route
+// guard exists) falls back to "Guest".
+function deriveDisplayName(email) {
+  const local = email.split('@')[0]
+  return local.charAt(0).toUpperCase() + local.slice(1)
+}
+
+export default function NavBar({ userName }) {
   const navigate = useNavigate()
-  const initials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+  const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') : null
+  const displayName = userName || (storedEmail ? deriveDisplayName(storedEmail) : 'Guest')
+  const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
   return (
     <header className="nav-bar">
@@ -20,11 +32,11 @@ export default function NavBar({ userName = 'Agamjot Kaur' }) {
           <div className="nav-brand-icon" aria-hidden="true">
             <MailIcon />
           </div>
-          <span className="nav-wordmark">AR Portal</span>
+          <span className="nav-wordmark">Business Central Portal</span>
         </a>
         <div className="nav-user">
           <div className="nav-avatar" aria-hidden="true">{initials}</div>
-          <span className="nav-user-name">{userName}</span>
+          <span className="nav-user-name">{displayName}</span>
         </div>
       </div>
     </header>
