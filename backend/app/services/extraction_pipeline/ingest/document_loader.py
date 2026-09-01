@@ -49,6 +49,22 @@ from .ocr_engine import OCREngine, sort_reading_order
 
 logger = logging.getLogger(__name__)
 
+
+def _default_dpi_for(engine: Optional[OCREngine]) -> int:
+    """The right render DPI for whichever engine will actually run.
+
+    RENDER_DPI (200) and RAPID_RENDER_DPI (100, paired with
+    intra_op_num_threads=8 -- see settings.py) were each tuned for their own
+    engine; using the wrong one is a silent latency/accuracy mismatch, not an
+    error, so callers must not have to know which engine is active to get
+    this right. `OCREngine()` construction is cheap (no model load), so
+    probing `.backend` here when no engine was supplied costs nothing.
+    """
+    from ....config.settings import RAPID_RENDER_DPI
+
+    backend = (engine or OCREngine()).backend
+    return RAPID_RENDER_DPI if backend == "rapidocr" else RENDER_DPI
+
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 
 # A page whose text layer yields fewer than this many characters is treated as
@@ -79,9 +95,16 @@ def load_document(
     path: str | Path,
     engine: Optional[OCREngine] = None,
     force_ocr: bool = False,
-    dpi: int = RENDER_DPI,
+    dpi: Optional[int] = None,
 ) -> Document:
-    """Read one file into the common representation."""
+    """Read one file into the common representation.
+
+    `dpi=None` (the default) resolves the same way as `load_documents()` --
+    see `_default_dpi_for()` -- so calling this directly does not silently
+    render at the wrong engine's DPI.
+    """
+    if dpi is None:
+        dpi = _default_dpi_for(engine)
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(path)
@@ -100,11 +123,19 @@ def load_documents(
     paths: Iterable[str | Path],
     engine: Optional[OCREngine] = None,
     force_ocr: bool = False,
-    dpi: int = RENDER_DPI,
+    dpi: Optional[int] = None,
     skip_unsupported: bool = True,
 ) -> DocumentSet:
     """Read many files. One vendor generally means several documents, and the
-    semantic engine merges candidates across all of them."""
+    semantic engine merges candidates across all of them.
+
+    `dpi=None` (the default) resolves to whichever DPI matches the active
+    engine's backend -- see `_default_dpi_for()`. Pass an explicit `dpi=` to
+    override that for a benchmark/A-B run; it is used as given, unchanged.
+    """
+    if dpi is None:
+        dpi = _default_dpi_for(engine)
+
     docs: list[Document] = []
     for p in paths:
         p = Path(p)
@@ -114,6 +145,19 @@ def load_documents(
             if not skip_unsupported:
                 raise
             logger.warning("Skipping %s: %s", p.name, exc)
+
+    # Phase 0 instrumentation (plan.md 0.2): how often the native-text fast
+    # path fires vs falling through to OCR. Logged, not persisted -- this is
+    # a diagnostic for the benchmark protocol, not part of the data model.
+    pages = [pg for d in docs for pg in d.pages]
+    if pages:
+        text_hits = sum(1 for pg in pages if pg.extraction_method == "pdf_text")
+        logger.info(
+            "_should_ocr fast path: %d/%d pages used the text layer (%.0f%%); "
+            "%d fell through to OCR",
+            text_hits, len(pages), 100 * text_hits / len(pages), len(pages) - text_hits,
+        )
+
     return DocumentSet(documents=docs)
 
 
@@ -126,7 +170,15 @@ def _load_pdf(path: Path, engine: Optional[OCREngine], force_ocr: bool, dpi: int
 
     scale = dpi / PDF_POINTS_PER_INCH
     doc = Document(path=str(path), doc_type=DocumentType.PDF)
+
+    # Phase 0 instrumentation (plan.md 0.1): pdf_open_s and render_s are stored
+    # in doc.metadata, a pre-existing free-form dict, so this is purely
+    # additive -- no change to Page/Document's shape or serialization.
+    open_t0 = time.perf_counter()
     pdf = pdfium.PdfDocument(str(path))
+    pdf_open_s = time.perf_counter() - open_t0
+    render_s = 0.0
+
     try:
         for index, page in enumerate(pdf):
             t0 = time.perf_counter()
@@ -156,7 +208,9 @@ def _load_pdf(path: Path, engine: Optional[OCREngine], force_ocr: bool, dpi: int
             if use_ocr:
                 if engine is None:
                     engine = OCREngine()
+                render_t0 = time.perf_counter()
                 image = _render_page(page, scale)
+                render_s += time.perf_counter() - render_t0
                 spans = engine.read_image(
                     image, source_document=path.name, page=page_no, span_source=SpanSource.OCR
                 )
@@ -177,6 +231,8 @@ def _load_pdf(path: Path, engine: Optional[OCREngine], force_ocr: bool, dpi: int
     methods = {p.extraction_method for p in doc.pages}
     doc.metadata["extraction_methods"] = sorted(methods)
     doc.metadata["dpi"] = dpi
+    doc.metadata["pdf_open_s"] = round(pdf_open_s, 4)
+    doc.metadata["render_s"] = round(render_s, 4)
     return doc
 
 

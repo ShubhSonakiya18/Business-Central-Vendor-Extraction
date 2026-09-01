@@ -117,10 +117,17 @@ def extract(documents: list[Path], run_dir: Path, models: str):
 
     started_at = time.perf_counter()
     try:
+        # det_model/rec_model are PaddleOCR-specific; load_documents()/OCREngine
+        # ignore them under the active RapidOCR backend (see RapidOCRTuning for
+        # its own knobs, tuned via OCR_RAPID_* instead of the `models` form field).
         engine = OCREngine(
             det_model=f"PP-OCRv6_{models}_det",
             rec_model=f"PP-OCRv6_{models}_rec",
         )
+        # dpi=None resolves to whichever DPI matches engine.backend -- see
+        # document_loader._default_dpi_for(). RapidOCR's default (100) is
+        # paired with OCREngine's own max_side_len so the resolution it
+        # renders at isn't silently downscaled away before detection sees it.
         doc_set = load_documents(documents, engine=engine)
         load_seconds = time.perf_counter() - started_at
     except Exception:

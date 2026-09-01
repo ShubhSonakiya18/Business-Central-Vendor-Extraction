@@ -41,7 +41,12 @@ def main() -> None:
     parser.add_argument("inputs", nargs="+", help="Files and/or directories")
     parser.add_argument("--out", default="outputs/ocr_dump", help="Output directory")
     parser.add_argument("--force-ocr", action="store_true", help="Ignore PDF text layers")
-    parser.add_argument("--dpi", type=int, default=RENDER_DPI)
+    parser.add_argument(
+        "--dpi", type=int, default=None,
+        help=f"Page render DPI. Defaults to whichever DPI matches the active "
+             f"OCR backend ({RENDER_DPI} for paddleocr, RAPID_RENDER_DPI for "
+             f"rapidocr) -- see document_loader._default_dpi_for().",
+    )
     parser.add_argument("--max-print", type=int, default=25, help="Spans to print per document")
     parser.add_argument(
         "--models",
@@ -82,7 +87,7 @@ def main() -> None:
     needs_ocr = args.force_ocr or any(f.suffix.lower() in IMAGE_SUFFIXES for f in files)
     warm = 0.0
     if needs_ocr:
-        print("\nLoading PaddleOCR models...")
+        print(f"\nLoading {engine.backend} models...")
         warm = engine.warmup()
         print(f"  engine ready in {warm:.1f}s")
 

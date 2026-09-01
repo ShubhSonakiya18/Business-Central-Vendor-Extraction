@@ -24,9 +24,9 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from .config_loader import FieldDictionary, ValidationRules, load_config
-from .ingest.document_loader import IMAGE_SUFFIXES, load_documents
-from .models import DocumentSet, ExtractionResult
-from .ingest.ocr_engine import OCREngine
+from .ingest.document_loader import IMAGE_SUFFIXES, _default_dpi_for, load_documents
+from .models import RENDER_DPI, DocumentSet, ExtractionResult
+from .ingest.ocr_engine import OCREngine, parse_ocr_tune
 from .extract.semantic_engine import DocumentClassifier, SemanticEngine
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,25 @@ def main() -> int:
     parser.add_argument("--cache", help="Reuse a saved document_set.json instead of re-running OCR")
     parser.add_argument("--out", default="outputs/run", help="Output directory")
     parser.add_argument("--models", choices=["small", "medium", "tiny"], default="small")
+    parser.add_argument(
+        "--backend", choices=["paddleocr", "rapidocr"], default=None,
+        help="OCR backend. Defaults to $OCR_BACKEND, else rapidocr (the active "
+             "engine as of 2026-09-01; paddleocr is the preserved fallback, "
+             "currently disabled -- see ocr_engine.py's PRESERVED FALLBACK banner).",
+    )
+    parser.add_argument(
+        "--ocr-tune", action="append", metavar="NAME=VALUE",
+        help="Tune a RapidOCR knob, repeatable. e.g. --ocr-tune det_box_thresh=0.3 "
+             "--ocr-tune max_side_len=4000. Ignored by the paddleocr backend. "
+             "Composes with any OCR_RAPID_* environment variables.",
+    )
+    parser.add_argument(
+        "--dpi", type=int, default=None,
+        help=f"Page render DPI. Defaults to whichever DPI matches the active "
+             f"OCR backend ({RENDER_DPI} for paddleocr, RAPID_RENDER_DPI for "
+             f"rapidocr). Raising this must be paired with a matching "
+             f"--ocr-tune max_side_len or RapidOCR downscales it straight back.",
+    )
     parser.add_argument("--force-ocr", action="store_true")
     parser.add_argument("--template", help="Excel template to fill")
     parser.add_argument("--sheet", help="Sheet name inside the template")
@@ -158,15 +177,60 @@ def main() -> int:
         print(f"Loading {len(files)} document(s)...")
         for f in files:
             print(f"  - {f.name}")
+        try:
+            rapid_tuning = parse_ocr_tune(args.ocr_tune)
+        except ValueError as exc:
+            parser.error(str(exc))
+
         ocr = OCREngine(
             det_model=f"PP-OCRv6_{args.models}_det",
             rec_model=f"PP-OCRv6_{args.models}_rec",
+            backend=args.backend,
+            rapid_tuning=rapid_tuning,
         )
-        doc_set = load_documents(files, engine=ocr, force_ocr=args.force_ocr)
+        print(f"  OCR backend: {ocr.backend}"
+              + ("   [PRESERVED FALLBACK -- currently disabled, see "
+                 "ocr_engine.py]" if ocr.backend == "paddleocr" else ""))
+
+        if args.dpi is None:
+            args.dpi = _default_dpi_for(ocr)
+
+        if ocr.backend == "rapidocr":
+            tuning = ocr._rapid_tuning
+            print(f"    max_side_len={tuning.max_side_len} "
+                  f"text_score={tuning.text_score} use_cls={tuning.use_cls} "
+                  f"det_box_thresh={tuning.det_box_thresh} "
+                  f"intra_op={tuning.intra_op_num_threads}")
+            # Raising DPI without raising max_side_len in lockstep is the
+            # classic way to pay 2x the render cost and measure no gain --
+            # RapidOCR simply downscales the extra pixels away again.
+            needed = int(args.dpi * 11.69) + 1   # A4 long edge, in pixels
+            if tuning.max_side_len < needed:
+                print(f"    WARNING: at {args.dpi} DPI an A4 page is ~{needed}px tall, "
+                      f"but max_side_len={tuning.max_side_len} will downscale it. "
+                      f"Pass --ocr-tune max_side_len={needed} to actually use the "
+                      f"extra resolution.")
+        elif args.ocr_tune:
+            print("    NOTE: --ocr-tune is ignored by the paddleocr backend.")
+
+        doc_set = load_documents(files, engine=ocr, force_ocr=args.force_ocr, dpi=args.dpi)
         doc_set.save_json(out_dir / "document_set.json")
 
     print(f"  {len(doc_set)} documents, {len(doc_set.spans)} spans "
           f"({time.perf_counter() - t0:.1f}s)")
+
+    # Phase 0 instrumentation (plan.md 0.1): break the load stage down further.
+    # Populated only for freshly-loaded PDFs; a --cache run has no metadata to
+    # sum, and this prints nothing in that case.
+    pdf_open_s = sum(d.metadata.get("pdf_open_s", 0.0) for d in doc_set)
+    render_s = sum(d.metadata.get("render_s", 0.0) for d in doc_set)
+    if pdf_open_s or render_s:
+        # render_s is nested inside doc_set.duration_s (it happens within each
+        # page's own timer); pdf_open_s is not (it happens before the
+        # per-page timers start), so only render_s is subtracted here.
+        ocr_and_text_layer_s = doc_set.duration_s - render_s
+        print(f"    pdf_open={pdf_open_s:.2f}s  render={render_s:.2f}s  "
+              f"ocr_and_text_layer={ocr_and_text_layer_s:.2f}s")
 
     result = extract_from_document_set(doc_set)
     _print_result(result)
@@ -183,18 +247,22 @@ def main() -> int:
         from .excel.excel_mapper import ExcelMapper
         from .excel.verifier import verify_excel
 
+        excel_t0 = time.perf_counter()
         mapper = ExcelMapper.load(args.mapping)
         xlsx_out = out_dir / "vendor_filled.xlsx"
         written = mapper.fill(result.canonical(), args.template, str(xlsx_out), sheet_name=args.sheet)
-        print(f"\n  Excel: wrote {written} field(s) -> {xlsx_out}")
+        fill_s = time.perf_counter() - excel_t0
+        print(f"\n  Excel: wrote {written} field(s) -> {xlsx_out}  ({fill_s:.2f}s)")
 
+        verify_t0 = time.perf_counter()
         report = verify_excel(
             result.canonical(), str(xlsx_out), mapper,
             sheet_name=args.sheet, report_path=str(out_dir / "verification_report.json"),
         )
+        verify_s = time.perf_counter() - verify_t0
         passed = sum(1 for e in report if e["status"] == "PASS")
         print(f"  Verification: {passed}/{len(report)} PASS "
-              f"-> {out_dir / 'verification_report.json'}")
+              f"-> {out_dir / 'verification_report.json'}  ({verify_s:.2f}s)")
 
     return 0
 

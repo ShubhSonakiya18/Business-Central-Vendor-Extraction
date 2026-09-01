@@ -18,9 +18,21 @@ DOCS = "app/uploads/09e0ff7aca"
 
 BANK_FIELDS = ("bank_name", "ifsc", "account_number", "branch_address")
 
+# paddleocr's execution path was commented out 2026-09-01 when RapidOCR became
+# the active engine (see ocr_engine.py's PRESERVED FALLBACK banners in
+# _load()) -- OCREngine(backend="paddleocr") now raises RuntimeError by
+# design. Restoring PaddleOCR means uncommenting those banners AND removing
+# this skip so this regression coverage resumes on both engines.
+_BACKENDS = [
+    pytest.param("paddleocr", marks=pytest.mark.skip(
+        reason="paddleocr execution path preserved but disabled -- see "
+               "ocr_engine.py PRESERVED FALLBACK banners")),
+    "rapidocr",
+]
+
 
 @pytest.mark.slow
-@pytest.mark.parametrize("backend", ["paddleocr", "rapidocr"])
+@pytest.mark.parametrize("backend", _BACKENDS)
 def test_bank_fields_all_come_from_the_same_document(backend):
     files = collect_inputs([DOCS])
     engine = OCREngine(backend=backend)
@@ -42,7 +54,7 @@ def test_bank_fields_all_come_from_the_same_document(backend):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("backend", ["paddleocr", "rapidocr"])
+@pytest.mark.parametrize("backend", _BACKENDS)
 def test_bank_name_matches_the_cheques_actual_bank(backend):
     """Ground truth: the vendor's cheque is ICICI; the Udyam certificate lists
     an unrelated Bank of India account. bank_name must reflect the cheque."""

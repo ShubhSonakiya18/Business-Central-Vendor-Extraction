@@ -117,6 +117,26 @@ fields:
     validators: []
     value_type: text
     expected_documents: [udyam_certificate]
+    search:
+      # BUG FOUND 2026-09-01 (mb_control_systems ground truth verification):
+      # the Udyam certificate's page-1 "MAJORACTIVITY" label sits at gap =
+      # (label-height units) 12.56 to its value's right edge -- just over the
+      # default max_distance: 12.0, so that (correct, cleanly-OCR'd)
+      # candidate was silently EXCLUDED from candidates entirely, not merely
+      # outscored. 14.0 fixes that part: the candidate is now visible.
+      #
+      # STILL WRONG after this fix, on purpose (see plan.md): this document
+      # has a SECOND, genuine "Major Activity" occurrence on page 3, much
+      # closer to its own label, whose OCR read happens to be garbled
+      # ("Manufactur" not "Manufacturing"). Spatial proximity legitimately
+      # favors the closer page-3 match over the farther-but-correct page-1
+      # one, so the field still resolves wrong. Deliberately NOT patched by
+      # loosening scoring further or special-casing this field -- that would
+      # risk other vendors/fields relying on the same "closer wins" default.
+      # The page-1 candidate is now at least visible in this field's
+      # `alternatives` for manual review, which it was not before.
+      directions: [right, below]
+      max_distance: 14.0
 
   # ---------------------------------------------------------------------------
   # STATUTORY IDENTIFIERS
