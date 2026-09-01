@@ -1,0 +1,20 @@
+# Development and test dependencies.
+#
+# From the repository root:
+#   pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+#
+# Then run the suite from backend/, where pytest.ini lives:
+#   cd backend && pytest
+
+-r requirements.txt
+
+pytest==9.1.1
+
+# One-off Azure connectivity tests (app/cli/check_azure_vlm.py, check_azure_gpt.py)
+# -- not used by the running app, so they stay out of requirements.txt.
+azure-ai-inference==1.0.0b9
+openai==3.3.1
+
+# rapidocr-onnxruntime / onnxruntime moved to requirements.txt on 2026-09-01
+# -- RapidOCR is now the active default engine, not a dev-only extra. See
+# ocr_engine.py's OCR_BACKEND comment for the switch's evidence.

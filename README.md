@@ -31,14 +31,22 @@ Everything converges on a single **canonical JSON** shape (24 fields — vendor 
 
 ## Quick start
 
-PaddlePaddle currently has no wheel for Python 3.14 — **use Python 3.12** for this environment.
+PaddlePaddle currently has no wheel for Python 3.14 — **use Python 3.12** for this environment. Build the venv with the 3.12 launcher explicitly; a bare `python -m venv` picks up whichever interpreter is first on PATH and the install then fails.
+
+From the repository root:
 
 ```bash
-py -3.12 -m venv .venv-paddle
-.venv-paddle\Scripts\Activate.ps1     # or: source .venv-paddle/bin/activate
-pip install -r requirements.txt
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1            # or: source .venv/bin/activate
+python -V                             # expect 3.12.x
+pip install -r backend/requirements.txt
+```
 
-uvicorn app:app --reload
+Then run the server from `backend/`:
+
+```bash
+cd backend
+uvicorn main:app --reload
 ```
 Open `http://127.0.0.1:8000/`.
 
@@ -48,34 +56,62 @@ Open `http://127.0.0.1:8000/`.
 
 ## Project layout
 
+The Python half lives under `backend/`, the Jinja templates and CSS under `frontend/`. Within the backend, modules are grouped by the pipeline stage they belong to.
+
 ```
-app.py                             FastAPI app
+.venv/                              Local dev environment, Python 3.12 (gitignored)
 
-v2/                                 The pipeline
+frontend/
+├── templates/                      Jinja2 templates (upload/results/error pages)
+└── static/style.css                Shared CSS
+
+backend/
+├── main.py                         Entrypoint — app factory; `uvicorn main:app`
+├── requirements.txt
+├── pytest.ini
+└── .env                            Local config, gitignored
+
+backend/app/                        HTTP layer
+├── config/settings.py              Paths, defaults, logging config
+├── routers/extraction.py           Endpoints (thin: parse, call services, render)
+├── services/extraction.py          Web adapter: orchestration and user-facing failures
+├── services/run_state.py           Per-run persistence under app/outputs/<run_id>/
+├── services/extraction_pipeline/   The pipeline itself — detailed below
+├── models/  database/  schemas/    Reserved for the auth layer — not yet implemented
+└── uploads/  outputs/  logs/       Runtime data, gitignored
+
+backend/app/services/extraction_pipeline/   The pipeline
+                                    Pure domain logic — no FastAPI/Jinja imports, so the
+                                    CLI, eval harness and tests drive it without a server
 ├── models.py                       Common document representation (spans, bboxes, pages)
-├── ocr_engine.py                   PaddleOCR 3.x wrapper — only module that imports paddleocr
-├── document_loader.py              PDF / image / DOCX → common representation
 ├── config_loader.py                Strict YAML loader for the field dictionary & rules
-├── layout_engine.py                Spatial queries: visual lines, label→value neighbours
-├── field_matcher.py                Scores candidate values per field (label + position + pattern + OCR confidence)
-├── semantic_engine.py              Classifies documents, merges candidates across them
-├── normalizer.py                   Value cleanup ops (uppercase, digit fixes, etc.)
-├── validator.py                    Generic rule executor — regex / length / enum / cross-field
-├── excel_mapper.py                 Fills a template from a YAML cell map
-├── verifier.py                     Reopens the saved file, diffs every cell, colours PASS/FAIL
-├── pipeline.py                     Wires the above end to end; CLI entry point
-├── dump_ocr.py                     CLI: inspect raw OCR/document output
-└── check_config.py                 CLI: validate the YAML config, no OCR needed
+├── pipeline.py                     Wires the stages end to end; CLI entry point
+├── ingest/                         Documents → common representation
+│   ├── ocr_engine.py               PaddleOCR 3.x wrapper — only module that imports paddleocr
+│   ├── document_loader.py          PDF / image / DOCX → common representation
+│   └── layout_engine.py            Spatial queries: visual lines, label→value neighbours
+├── extract/                        Spans → judged field values
+│   ├── field_matcher.py            Scores candidates (label + position + pattern + OCR confidence)
+│   ├── semantic_engine.py          Classifies documents, merges candidates across them
+│   ├── normalizer.py               Value cleanup ops (uppercase, digit fixes, etc.)
+│   └── validator.py                Generic rule executor — regex / length / enum / cross-field
+└── excel/                          Result → workbook
+    ├── excel_mapper.py             Fills a template from a YAML cell map
+    └── verifier.py                 Reopens the saved file, diffs every cell, colours PASS/FAIL
 
-config/                             The pipeline's field knowledge — edit this, not Python, to change behaviour
+backend/app/cli/                    Command-line entry points
+├── check_config.py                 Validate the YAML config, no OCR needed
+└── dump_ocr.py                     Inspect raw OCR/document output
+
+backend/app/eval/                   Accuracy measurement against human-verified ground truth
+backend/tests/                      Unit tests (no OCR — fast)
+
+backend/config/                     The pipeline's field knowledge — edit this, not Python, to change behaviour
 ├── field_dictionary.yaml           24 fields: labels, regex patterns, validators, search rules
 ├── validation_rules.yaml           15 validators (format + cross-document consistency)
 ├── document_profiles.yaml          How a document is classified (GST cert vs cheque vs ...)
 └── excel_mappings/
     └── vendor_creation_v1.yaml     Field → Excel cell mapping
-
-templates/                          Jinja2 templates (upload/results/error pages)
-static/                             Shared CSS
 ```
 
 ---
@@ -131,7 +167,7 @@ Loads the template, writes only non-empty values, saves — then **reopens the s
 
 Everything below is data, not code. The loader is strict on purpose: an unresolvable validator reference, an invalid regex, or confidence weights that don't sum to `1.0` fail at load time — naming the exact field — rather than silently producing a blank Excel cell later.
 
-**Add a field** by adding a block to `config/field_dictionary.yaml`:
+**Add a field** by adding a block to `backend/config/field_dictionary.yaml`:
 ```yaml
 ifsc:
   labels: [IFSC, IFSC Code, IFS Code, RTGS/NEFT/IFS Code]
@@ -142,7 +178,7 @@ ifsc:
   required: true
 ```
 
-**Add a validator** in `config/validation_rules.yaml`:
+**Add a validator** in `backend/config/validation_rules.yaml`:
 ```yaml
 pin_format:
   type: regex
@@ -151,7 +187,7 @@ pin_format:
   message: Not a valid 6-digit Indian PIN code
 ```
 
-**Add an Excel template** by adding a file under `config/excel_mappings/`.
+**Add an Excel template** by adding a file under `backend/config/excel_mappings/`.
 
 No Python changes are required for any of the above.
 
@@ -159,26 +195,32 @@ No Python changes are required for any of the above.
 
 ## CLI tools
 
+Run these from `backend/`, with the venv activated.
+
 ```bash
 # Validate the YAML config (fast, no OCR)
-python -m v2.check_config
+python -m app.cli.check_config
 
 # Inspect raw OCR/document output for a file or folder
-python -m v2.dump_ocr path/to/documents --out outputs/inspect
+python -m app.cli.dump_ocr path/to/documents --out outputs/inspect
 
 # Run the full pipeline end to end
-python -m v2.pipeline path/to/documents \
+python -m app.services.extraction_pipeline.pipeline path/to/documents \
   --template "Vendor Form.xlsx" --sheet Sheet1 --out outputs/run
 
 # Re-run extraction against a previously saved document set (skips OCR entirely)
-python -m v2.pipeline --cache outputs/inspect/document_set.json --out outputs/run
+python -m app.services.extraction_pipeline.pipeline --cache outputs/inspect/document_set.json --out outputs/run
+
+# Unit tests (no OCR — fast)
+pip install -r requirements-dev.txt
+pytest
 ```
 
 ---
 
 ## Known limitations
 
-- **Throughput**: scanned pages run ~10–35s each on CPU (PaddlePaddle's oneDNN acceleration is disabled to work around a CPU executor crash in PaddlePaddle 3.3.1 — see `v2/ocr_engine.py`). Fine for single-vendor use; page-level parallelism would be the next step for batch processing.
+- **Throughput**: scanned pages run ~10–35s each on CPU (PaddlePaddle's oneDNN acceleration is disabled to work around a CPU executor crash in PaddlePaddle 3.3.1 — see `backend/app/services/extraction_pipeline/ingest/ocr_engine.py`). Fine for single-vendor use; page-level parallelism would be the next step for batch processing.
 - **Bank name** is not reliably extractable from a cheque scan alone — cheques don't caption their own bank name, and OCR reads the logo as garbled text. An IFSC-prefix → bank-name lookup table is the planned fix, not yet implemented.
 - **DOCX geometry is synthetic**: since Word documents carry no pixel coordinates, the pipeline lays text out on a synthesized canvas to preserve caption/value adjacency. This works for the matching engine but bounding boxes in DOCX output aren't real page positions.
-- `requirements.txt` pins the versions this was built and tested against; PaddleOCR/PaddlePaddle version bumps are not guaranteed compatible without re-testing.
+- `backend/requirements.txt` pins the versions this was built and tested against; PaddleOCR/PaddlePaddle version bumps are not guaranteed compatible without re-testing.
