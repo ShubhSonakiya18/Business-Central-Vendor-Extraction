@@ -1,0 +1,42 @@
+# --- Web framework / API ---
+fastapi==0.141.1
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.13.5
+
+# --- Persistence ---
+sqlalchemy==2.0.52
+
+# --- OCR (CPU-only) ---
+# PaddleOCR + PaddlePaddle. Install CPU build only -- do NOT install
+# paddlepaddle-gpu, we don't need/want CUDA wheels for this pipeline.
+#
+# NOTE: paddleocr==3.2.0 / paddlex==3.2.1 (the versions originally pinned
+# here) are broken on import: paddlex's own __init__.py eagerly imports
+# every bundled pipeline, including an unrelated doc-retrieval component
+# that hard-imports `langchain.docstore` -- a module removed from modern
+# LangChain -- so `import paddleocr` raises ModuleNotFoundError even though
+# we never touch that feature. paddleocr==3.7.0 / paddlex==3.7.2 fixed this.
+# Also: do NOT install the `[all]` extra -- it pulls in that same
+# doc-retrieval/RAG dependency chain (langchain, extra vector-store/LLM
+# deps) that this pipeline has no use for; the base package is enough for
+# text detection + recognition.
+paddlepaddle==3.2.0
+paddleocr==3.7.0
+
+# --- PDF / document text & rasterization ---
+pymupdf==1.28.2        # fitz -- native PDF text-layer extraction + rasterization
+pdfplumber==0.11.4     # secondary text-layer extractor, used as cross-check/fallback
+pdf2image==1.17.0      # rasterize PDF pages to images for OCR fallback (needs poppler, see README)
+Pillow==11.0.0
+
+# --- Excel export ---
+openpyxl==3.1.5
+
+# --- Testing ---
+pytest==8.3.4
+httpx==0.28.1
+reportlab==4.2.5       # used only by tests/fixtures to synthesize sample PDFs
+
+# --- Dev / misc ---
+python-dotenv==1.0.1
