@@ -3,6 +3,12 @@ backend/app/uploads/
 backend/app/outputs/
 backend/app/logs/
 
+# The CLI entry points (pipeline.py, dump_ocr.py) default --out to a path relative
+# to the working directory, so a run from backend/ lands here rather than under
+# app/. Same PII, same rule. Unanchored so it also catches a run from the repo root.
+outputs/
+uploads/
+
 # Ground truth for real vendors transcribes the same PII as the source documents
 # (GSTIN, PAN, bank account numbers). Git history is permanent, so only the
 # synthetic example is tracked; real vendor files stay local.
