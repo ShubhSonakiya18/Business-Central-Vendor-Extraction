@@ -368,6 +368,22 @@ fields:
       # A website that appears without either prefix has to be found via its
       # label instead.
       - '(?:https?://|www\.)[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}(?:/\S*)?'
+    # Government portal URLs appear in certificate boilerplate ("Printed from
+    # https://udyamregistration.gov.in", "Visit: www.msme.gov.in"). They are
+    # the issuing authority's sites, never the vendor's, and reporting one as
+    # the vendor's website is inventing a company attribute out of a footer.
+    exclude_patterns:
+      - '(?i:udyamregistration\.gov\.in|msme\.gov\.in|dcmsme\.gov\.in|gst\.gov\.in|incometax\.gov\.in|nic\.in)'
+      - '(?i:\.gov\.in|\.gov$|\.nic\.in)'
+    # No document in this vendor packet prints a company website, so the field
+    # would otherwise always be empty. The email domain is the best available
+    # evidence -- but it is INFERRED, so it is flagged for review and its
+    # provenance records that it was computed. Free mailbox providers are
+    # excluded (see FREE_EMAIL_DOMAINS): "vendor@gmail.com" must not yield
+    # gmail.com as the company's website.
+    derive_from:
+      field: email
+      rule: email_domain
     normalization: [lowercase, remove_spaces]
     validators: []
     value_type: url
@@ -385,7 +401,38 @@ fields:
       - Name of Bank
       - Bank
       - Banker
-    patterns: []
+    # A cancelled cheque almost never carries a "Bank Name:" caption -- the
+    # bank is a logo and a line of boilerplate. Without patterns the cheque
+    # produced no candidate at all, so a labelled "Bank Name: Bank of India"
+    # on the Udyam certificate won by default, and the vendor's ICICI account
+    # number was reported under Bank of India's name. Matching the bank
+    # directly out of cheque text is what lets `expected_documents` below
+    # actually take effect.
+    # Scoped `(?i:...)` rather than a leading `(?i)`: these patterns get wrapped
+    # in a boundary lookbehind at load time, and a global flag is only legal at
+    # the very start of the final expression.
+    patterns:
+      - '(?i:(?:ICICI|HDFC|Axis|Kotak|IndusInd|IDFC(?:\s+First)?|Yes|Federal|RBL|Bandhan|DCB|CSB|Dhanlaxmi|Karnataka|Nainital)\s*Bank)'
+      - '(?i:State\s+Bank\s+of\s+India)'
+      - '(?i:Bank\s+of\s+(?:India|Baroda|Maharashtra))'
+      - '(?i:(?:Punjab\s+National|Punjab\s*&?\s*Sind|Canara|Union|Indian|Central|UCO|Karur\s+Vysya|South\s+Indian|Tamilnad\s+Mercantile|City\s+Union)\s+Bank)'
+      - '(?i:Indian\s+Overseas\s+Bank|IDBI\s+Bank)'
+    # OCR renders the same bank several ways: the ICICI logomark reads as a
+    # leading "A" ("AICICIBank"), and the payable-at-par boilerplate reads
+    # "ICiCI Bank Limited" with lowercase i's. All of them are ICICI Bank.
+    aliases:
+      ICICI Bank:
+        - '(?i)icici'
+      State Bank of India:
+        - '(?i)state\s*bank\s*of\s*india'
+      Bank of India:
+        - '(?i)bank\s*of\s*india'
+      HDFC Bank:
+        - '(?i)hdfc'
+      Axis Bank:
+        - '(?i)axis'
+      Kotak Mahindra Bank:
+        - '(?i)kotak'
     normalization: [strip, collapse_spaces]
     validators: []
     value_type: text
@@ -398,7 +445,14 @@ fields:
       - Branch Address
       - Branch Name
       - Branch Office
-    patterns: []
+    # Like bank_name, a cheque prints its branch as a bare line ("Kolkata-
+    # Gariahat Branch") with no caption, so label matching alone found nothing
+    # and the field came back empty. This matches a branch designation ending
+    # in "Branch"; the trailing boundary stops it matching "branches" in the
+    # payable-at-par boilerplate, and `expected_documents` below keeps the
+    # Udyam certificate's "DIC BRANCH OFFICE" out of contention.
+    patterns:
+      - '(?i:[A-Za-z][A-Za-z0-9\s\-,\.&/]{2,45}?\s*Branch)'
     normalization: [strip, collapse_spaces]
     validators: []
     value_type: text

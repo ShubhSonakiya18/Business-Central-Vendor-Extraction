@@ -370,6 +370,11 @@ class FieldMatcher:
         value, pattern_matched = self._derive_value(spec, raw)
         if not value:
             return None
+        if spec.is_excluded(value):
+            # Structurally valid but semantically wrong -- e.g. the issuing
+            # authority's portal URL in certificate boilerplate, which is a
+            # perfectly well-formed website that is never this vendor's.
+            return None
         if spec.patterns and not pattern_matched:
             # A field with a declared shape should not accept something of a
             # different shape just because it sat next to the caption.
@@ -438,12 +443,12 @@ class FieldMatcher:
             for text in (raw, normalize(raw, spec.normalization)):
                 matches = spec.find_pattern_matches(text)
                 if matches:
-                    return normalize(matches[0], spec.normalization), True
+                    return spec.canonicalize(normalize(matches[0], spec.normalization)), True
             # Normalization can create a match that the raw text lacked, e.g.
             # 'ICIC 0006278' only becomes an IFSC once spaces are removed.
             normalized = normalize(raw, spec.normalization)
             if spec.matches_pattern(normalized):
-                return normalized, True
-            return normalized, False
+                return spec.canonicalize(normalized), True
+            return spec.canonicalize(normalized), False
 
-        return normalize(raw, spec.normalization), False
+        return spec.canonicalize(normalize(raw, spec.normalization)), False

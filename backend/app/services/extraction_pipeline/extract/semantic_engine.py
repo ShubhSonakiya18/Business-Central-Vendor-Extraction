@@ -19,11 +19,16 @@ from typing import Optional
 
 import yaml
 
-from ..config_loader import CONFIG_DIR, FieldDictionary, ValidationRules
+from ..config_loader import CONFIG_DIR, FieldDictionary, ValidationRules, derive_value
 from .field_matcher import KIND_RANK, Candidate, FieldMatcher
 from ..ingest.layout_engine import DocumentLayout
 from ..models import Document, DocumentSet, ExtractionResult, FieldResult
 from .validator import Validator
+
+# Derived values are computed from another field, not observed on a document.
+# Kept deliberately low so they never outrank an extracted value and always
+# read as second-class in the report.
+DERIVED_VALUE_CONFIDENCE = 0.40
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +151,39 @@ class SemanticEngine:
                 field_result.notes.append("filled_from_config_default")
 
             result.fields[spec.key] = field_result
+
+        # 2b. derive fields that nothing on the documents supplied.
+        #
+        # Runs after every field is resolved, because a derivation reads
+        # another field's final value. The result is INFERRED, never read off a
+        # page, so it is flagged for review and its provenance says so -- a
+        # human signing the form should be able to see that the value was
+        # computed rather than extracted.
+        for spec in self.dictionary:
+            field_result = result.fields[spec.key]
+            if field_result.is_present or not spec.derive_from:
+                continue
+            source_key = spec.derive_from.get("field")
+            rule = spec.derive_from.get("rule")
+            source = result.fields.get(source_key)
+            if not source or not source.value:
+                continue
+            derived = derive_value(rule, source.value)
+            if not derived:
+                continue
+            field_result.value = derived
+            # Never inherit the source field's confidence: this value was not
+            # observed, and it must not outrank things that were.
+            field_result.confidence = DERIVED_VALUE_CONFIDENCE
+            field_result.source_document = f"derived_from_{source_key}"
+            field_result.notes.append(f"derived_from_{source_key}_via_{rule}")
+            # A warning, not an error: deriving was the configured intent, and
+            # the point of the flag is to tell a human the value was computed
+            # rather than read -- not to report a failure.
+            self._flag(result, spec.key, "value_derived_not_printed",
+                       DERIVED_VALUE_CONFIDENCE,
+                       detail=f"computed from {source_key}; not printed on any document",
+                       severity="warning")
 
         # 3. validate (after every value is known, so derived rules can see them)
         values = {k: (r.value or "") for k, r in result.fields.items()}
@@ -270,6 +308,30 @@ class SemanticEngine:
         2. The global source precedence, for everything with no such preference.
         3. How the value was found -- inline beats adjacent beats bare pattern.
         """
+        # `expected_documents` is a HARD restriction, not a tie-break. It used
+        # to apply only inside the 0.05 window below, which meant a
+        # better-scoring candidate from the wrong document won outright and the
+        # preference never ran.
+        #
+        # That is how production came to emit a mixed-source bank record: this
+        # vendor's Udyam certificate prints a labelled "Bank of India" (clean
+        # inline match, high score) while the cancelled cheque carries ICICI
+        # only as a logo OCR'd as "AICICIBank" (no label, low score). The gap
+        # exceeded 0.05, so Udyam won `bank_name` while the cheque still won
+        # `ifsc` and `account_number` -- ICICI's account under Bank of India's
+        # name, belonging to no real account, and not flagged for review.
+        #
+        # When a field names the documents it belongs on and at least one
+        # candidate comes from one, candidates from anywhere else are not
+        # contenders at any score.
+        if spec.expected_documents:
+            preferred = [
+                c for c in items
+                if doc_types.get(c.source_document, "other") in spec.expected_documents
+            ]
+            if preferred:
+                items = preferred
+
         best = items[0]
         close = [c for c in items if best.score - c.score <= 0.05]
         if len(close) <= 1:

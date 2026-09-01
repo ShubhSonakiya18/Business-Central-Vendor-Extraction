@@ -46,6 +46,13 @@ KNOWN_VALIDATOR_TYPES = {"regex", "length", "enum", "non_empty", "derived"}
 
 KNOWN_SEARCH_DIRECTIONS = {"right", "below", "left", "above"}
 
+# Minimum length for the unspaced-match fallback in
+# `FieldSpec._find_unspaced_matches`. Set above the 2-character "CC" / "OD"
+# account-type codes, which are the shortest documented false positives the
+# token-boundary guard exists to prevent. See that method for the full
+# rationale before changing this.
+MIN_UNSPACED_MATCH_LEN = 5
+
 _FIELD_KEYS = {
     "description",
     "labels",
@@ -61,7 +68,37 @@ _FIELD_KEYS = {
     "confidence",
     "label_match",
     "default",
+    "aliases",
+    "derive_from",
+    "exclude_patterns",
 }
+
+# Mailbox providers whose domain says nothing about the vendor. Deriving a
+# website from "vendor@gmail.com" would report gmail.com as the company's site.
+FREE_EMAIL_DOMAINS = frozenset({
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.in", "yahoo.in",
+    "hotmail.com", "outlook.com", "live.com", "msn.com",
+    "rediffmail.com", "rediff.com", "sify.com", "vsnl.net", "vsnl.com",
+    "bsnl.in", "airtelmail.in", "icloud.com", "me.com", "aol.com",
+    "protonmail.com", "proton.me", "zoho.com", "yandex.com", "mail.com",
+})
+
+
+def derive_value(rule: str, source_value: str) -> Optional[str]:
+    """Compute a field value from another field's value.
+
+    Returns None when the rule cannot produce a trustworthy answer, which the
+    caller must treat as "leave the field empty" rather than guessing.
+    """
+    if rule == "email_domain":
+        _, _, domain = source_value.strip().lower().partition("@")
+        domain = domain.strip().strip(".")
+        if not domain or "." not in domain:
+            return None
+        if domain in FREE_EMAIL_DOMAINS:
+            return None
+        return f"www.{domain}"
+    raise ConfigError(f"unknown derive_from rule {rule!r}")
 
 
 class ConfigError(ValueError):
@@ -113,6 +150,22 @@ class FieldSpec:
     # Same patterns as `patterns`, but guarded so they cannot match inside a
     # longer alphanumeric run. Built at load time; see _boundary_wrap.
     scan_patterns: list[re.Pattern] = dc_field(default_factory=list)
+    # Canonical value -> patterns that should collapse to it. Lets a field
+    # report one spelling regardless of how the document (or the OCR engine)
+    # rendered it: a cheque's ICICI logo reads as "AICICIBank" and its
+    # boilerplate as "ICiCI Bank Limited", both of which should surface as
+    # "ICICI Bank". Applied after normalization; see `canonicalize`.
+    aliases: list[tuple[str, re.Pattern]] = dc_field(default_factory=list)
+    # Fill this field from another field when no candidate was found on any
+    # document, e.g. {"field": "email", "rule": "email_domain"}. The result is
+    # INFERRED, not read off a page -- see `derive_value` and the review flag
+    # raised in semantic_engine.
+    derive_from: Optional[dict] = None
+    # Values matching any of these are rejected outright, even when they match
+    # `patterns`. For boilerplate that is structurally valid but semantically
+    # wrong -- a government portal URL is a perfectly well-formed website, just
+    # never this vendor's.
+    exclude_patterns: list[re.Pattern] = dc_field(default_factory=list)
 
     @property
     def canonical_label(self) -> str:
@@ -125,6 +178,21 @@ class FieldSpec:
         if not self.patterns:
             return True
         return any(p.fullmatch(value) for p in self.patterns)
+
+    def is_excluded(self, value: str) -> bool:
+        """True if this value is boilerplate this field must never report."""
+        return any(p.search(value) for p in self.exclude_patterns)
+
+    def canonicalize(self, value: str) -> str:
+        """Collapse a recognised spelling to its canonical form.
+
+        Returns the value unchanged when no alias matches, so a field with no
+        `aliases` configured is entirely unaffected.
+        """
+        for canonical, pattern in self.aliases:
+            if pattern.search(value):
+                return canonical
+        return value
 
     def find_pattern_matches(self, text: str) -> list[str]:
         """All substrings of `text` matching any pattern, at token boundaries.
@@ -139,6 +207,45 @@ class FieldSpec:
         found: list[str] = []
         for pattern in self.scan_patterns or self.patterns:
             found.extend(m.group(0) for m in pattern.finditer(text))
+        if found:
+            return found
+        return self._find_unspaced_matches(text)
+
+    def _find_unspaced_matches(self, text: str) -> list[str]:
+        """Fallback for OCR engines that drop inter-word spaces.
+
+        RapidOCR's shipped recogniser uses a Chinese charset, where inter-word
+        spaces do not exist, and it runs Latin words together: it reads a cheque
+        line as "BUSINESSBANKING:NEW CURRENTACCOUNT" where PaddleOCR reads
+        "BUSINESS BANKING: NEW CURRENT ACCOUNT". The boundary guard above then
+        correctly refuses to match "CURRENT" inside "CURRENTACCOUNT" -- correct,
+        because that guard is what stops "CC" matching inside "CCGEN".
+
+        So this relaxation is deliberately narrow. It applies only when the
+        guarded scan found nothing at all, and only to matches that are
+        **alphabetic and at least MIN_UNSPACED_MATCH_LEN characters**. That
+        threshold is chosen against the exact false positives the guard exists
+        to prevent:
+
+            "CC" in "CCGEN"                  -- 2 chars, rejected
+            "OD" in "PRODUCTION"             -- 2 chars, rejected
+            "627851" in "627851000539"       -- numeric, rejected
+            "6278510005" in "627851000539"   -- numeric, rejected
+            "CURRENT" in "CURRENTACCOUNT"    -- 7 alphabetic chars, ACCEPTED
+
+        Numeric patterns are excluded outright: a digit run colliding inside a
+        longer digit run is exactly the PIN-inside-account-number failure, and
+        no length threshold makes that safe. Identifier fields (GSTIN, PAN,
+        IFSC, account number) are all digit-bearing, so none of them can reach
+        this path -- the relaxation cannot affect the fields that matter most.
+        """
+        found: list[str] = []
+        for pattern in self.patterns:          # unguarded originals
+            for match in pattern.finditer(text):
+                value = match.group(0)
+                compact = value.replace(" ", "")
+                if len(compact) >= MIN_UNSPACED_MATCH_LEN and compact.isalpha():
+                    found.append(value)
         return found
 
 
@@ -420,6 +527,16 @@ def load_field_dictionary(
             confidence=confidence,
             label_match=label_match,
             expected_documents=list(cfg.get("expected_documents") or []),
+            aliases=[
+                (canonical, _compile(pat, f"field {key!r} alias {canonical!r}"))
+                for canonical, pats in (cfg.get("aliases") or {}).items()
+                for pat in (pats if isinstance(pats, list) else [pats])
+            ],
+            derive_from=cfg.get("derive_from"),
+            exclude_patterns=[
+                _compile(p, f"field {key!r} exclude_pattern")
+                for p in (cfg.get("exclude_patterns") or [])
+            ],
             priority=int(cfg.get("priority", defaults.get("priority", 50))),
             required=bool(cfg.get("required", defaults.get("required", False))),
             cross_document_consistency=bool(
