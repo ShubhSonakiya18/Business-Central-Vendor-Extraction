@@ -7,9 +7,26 @@ come from the same extraction, so a misread GSTIN passes. Here the reference is
 a ground truth file transcribed by a human from the source documents, so a
 misread GSTIN shows up as `wrong`.
 
+Ground truth can come from either source:
+
     python -m eval.eval_extraction \\
         --ground-truth eval/ground_truth/mb_control_systems.yaml \\
         --documents "path/to/vendor/docs"
+
+    python -m eval.eval_extraction \\
+        --ground-truth-excel "path/to/vendor/docs/GROUND_TRUTH.xlsx" \\
+        --mapping vendor_creation_v1 \\
+        --documents "path/to/vendor/docs"
+
+The Excel form is a pre-filled copy of the same template the pipeline writes
+into (e.g. VENDOR CREATION REQUEST FORM.xlsx), hand-filled by a human with the
+correct value in every cell the mapping writes. Because it uses the same cell
+map as the pipeline's own output, comparison is a direct cell-for-cell read via
+`ExcelMapper.cells_for()` -- no separate transcription format to keep in sync.
+Blank cells are treated as `absent: true` (nothing on this vendor's ground-truth
+form), not as "not yet filled in" -- an incompletely-filled ground-truth sheet
+will silently under-report `missed`/`wrong` on the fields left blank, so treat a
+"0 wrong" run with suspicion until every cell has actually been filled in.
 
 Outcomes per field:
 
@@ -92,6 +109,40 @@ def load_ground_truth(path: Path, allow_unverified: bool = False) -> dict:
             raise GroundTruthError(f"field {key!r} has neither a value nor absent: true")
 
     return data
+
+
+def load_ground_truth_excel(path: Path, mapping_name: str, vendor_id: Optional[str] = None) -> dict:
+    """Read a hand-filled copy of the pipeline's own Excel template as ground
+    truth. Same cell map as ExcelMapper.fill() / verify_excel() use, so a value
+    in cell C7 here is compared against exactly the field the pipeline writes
+    into C7 -- no separate field-name mapping to maintain.
+
+    Unlike the YAML path there is no `verified: true` flag: filling in every
+    cell by hand *is* the verification step. A blank cell means "nothing to
+    extract here" (`absent: true`), not "not filled in yet" -- see the module
+    docstring's warning about incompletely-filled sheets.
+    """
+    import openpyxl
+
+    from ..services.extraction_pipeline.excel.excel_mapper import ExcelMapper
+
+    mapper = ExcelMapper.load(mapping_name)
+    workbook = openpyxl.load_workbook(str(path), data_only=True)
+
+    fields: dict[str, dict] = {}
+    for field, cell_ref, sheet in mapper.cells_for():
+        target = sheet or workbook.sheetnames[0]
+        if target not in workbook.sheetnames:
+            raise GroundTruthError(
+                f"{path.name}: sheet {target!r} not found. Available: {workbook.sheetnames}"
+            )
+        value = workbook[target][cell_ref].value
+        if value is None or str(value).strip() == "":
+            fields[field] = {"absent": True}
+        else:
+            fields[field] = {"value": value}
+
+    return {"vendor_id": vendor_id or path.stem, "verified": True, "fields": fields}
 
 
 # ---------------------------------------------------------------------------
@@ -262,12 +313,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--ground-truth", required=True, help="Path to a ground truth YAML file")
+    parser.add_argument("--ground-truth", help="Path to a ground truth YAML file")
+    parser.add_argument("--ground-truth-excel",
+                        help="Path to a hand-filled copy of the pipeline's Excel template, "
+                             "used as ground truth instead of a YAML file")
+    parser.add_argument("--mapping", default="vendor_creation_v1",
+                        help="Excel mapping config name (required with --ground-truth-excel)")
     parser.add_argument("--documents", required=True, help="Directory holding that vendor's documents")
     parser.add_argument("--models", choices=["small", "medium", "tiny"], default="small")
     parser.add_argument("--cache", help="Cache/reuse the OCR'd document set at this path")
     parser.add_argument("--allow-unverified", action="store_true",
-                        help="Score against a ground truth file still marked verified: false")
+                        help="Score against a YAML ground truth file still marked verified: false")
     parser.add_argument("--json-out", help="Write the per-field results to this JSON file")
     args = parser.parse_args()
 
@@ -276,7 +332,13 @@ def main() -> int:
     except (AttributeError, OSError):
         pass
 
-    ground_truth = load_ground_truth(Path(args.ground_truth), args.allow_unverified)
+    if bool(args.ground_truth) == bool(args.ground_truth_excel):
+        parser.error("pass exactly one of --ground-truth or --ground-truth-excel")
+
+    if args.ground_truth_excel:
+        ground_truth = load_ground_truth_excel(Path(args.ground_truth_excel), args.mapping)
+    else:
+        ground_truth = load_ground_truth(Path(args.ground_truth), args.allow_unverified)
     document_dir = Path(args.documents)
 
     print(f"Running extraction over {document_dir}...")
