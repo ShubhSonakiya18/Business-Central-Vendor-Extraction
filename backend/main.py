@@ -11,6 +11,7 @@ importing the package itself.
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config.settings import (
@@ -27,6 +28,20 @@ def create_app() -> FastAPI:
     ensure_directories()
 
     app = FastAPI(title=APP_TITLE)
+
+    # Allow the React dev server (and any production origin) to call the API
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        allow_origin_regex=r"https?://.*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(router)
     return app

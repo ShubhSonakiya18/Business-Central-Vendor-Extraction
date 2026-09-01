@@ -49,7 +49,8 @@ export default function FileDropzone({ files, setFiles, accept }) {
       let nextId = prev.length ? Math.max(...prev.map(f => f.id)) + 1 : 1
       incoming.forEach(f => {
         if (!merged.find(e => e.name === f.name))
-          merged.push({ id: nextId++, name: f.name, type: fileType(f.name) })
+          // fileObject holds the raw File so callers can build FormData
+          merged.push({ id: nextId++, name: f.name, type: fileType(f.name), fileObject: f })
       })
       return merged
     })

@@ -1,39 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import Stepper from '../components/Stepper'
+import { downloadUrl } from '../api'
 import './VendorComparePage.css'
 
 const VENDOR_STEPS = [{ label: 'Upload' }, { label: 'Compare' }, { label: 'Submit' }]
-
-const FIELDS = [
-  { label: 'Vendor Name',                        pdf: 'Rajesh Enterprises Pvt Ltd',   excel: 'Rajesh Enterprises Pvt Ltd' },
-  { label: 'Address 1',                          pdf: '42, Industrial Estate',         excel: '42, Industrial Estate' },
-  { label: 'Address 2',                          pdf: 'Sector 18',                     excel: 'Sector 18' },
-  { label: 'Address 3',                          pdf: 'MIDC Area',                     excel: 'MIDC Area' },
-  { label: 'Address 4',                          pdf: 'Near Highway 48',               excel: null },
-  { label: 'City',                               pdf: 'Pune',                          excel: 'Pune' },
-  { label: 'State',                              pdf: 'Maharashtra',                   excel: 'Maharashtra' },
-  { label: 'Country',                            pdf: 'India',                         excel: 'India' },
-  { label: 'Pin Code',                           pdf: '411018',                        excel: '411018' },
-  { label: 'Telephone 1',                        pdf: '+91-20-27404521',               excel: '+91-20-27404521' },
-  { label: 'Telephone 2',                        pdf: '+91-9876543210',                excel: '+91-9876543210' },
-  { label: 'E-mail ID',                          pdf: 'accounts@rajeshent.com',        excel: 'accounts@rajeshent.com' },
-  { label: 'Website',                            pdf: 'www.rajeshenterprises.in',      excel: 'www.rajeshenterprises.in' },
-  { label: 'Company / Non-Company',              pdf: 'Company',                       excel: 'Company' },
-  { label: 'Nature of Business',                 pdf: 'Manufacturing',                 excel: 'Manufacturing' },
-  { label: 'TAN No.',                            pdf: 'PNRJ12345F',                    excel: 'PNRJ12345F' },
-  { label: 'PAN',                                pdf: 'AABCR1234L',                    excel: 'AABCR1234M',  mismatch: true },
-  { label: 'TDS Section / Condition Applicable', pdf: '194C',                          excel: '194C' },
-  { label: 'GST No.',                            pdf: '27AABCR1234L1ZD',               excel: '27AABCR1234L1ZS', mismatch: true },
-  { label: 'ESIC No.',                           pdf: '31000343210001234',             excel: '31000343210001234' },
-  { label: 'MSME Vendor (UAN No. if applicable)',pdf: 'Yes – MH18D0000001',            excel: 'Yes – MH18D0000001' },
-  { label: 'Bank Name',                          pdf: 'HDFC Bank Ltd',                 excel: 'HDFC Bank Ltd' },
-  { label: 'Branch Address',                     pdf: 'FC Road Branch, Pune',          excel: 'FC Road Branch, Pune' },
-  { label: 'IFSC / SWIFT Code',                  pdf: 'HDFC0001234',                   excel: 'HDFC0001234' },
-  { label: 'Account Type (CA/CC/SB)',            pdf: 'CA',                            excel: 'CA' },
-  { label: 'Account Number',                     pdf: '50100234567890',                excel: '50100234567891', mismatch: true },
-]
 
 const WarnIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -44,14 +16,76 @@ const WarnIcon = () => (
   </svg>
 )
 
+const DownloadIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" width="15" height="15">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+)
+
+/**
+ * Normalise the backend `fields` map into rows the comparison table can render.
+ *
+ * The backend shape per field:
+ *   { value, confidence, source, flagged }
+ *   source: "pdf" | "excel" | "merged" | "single_source"
+ *
+ * needs_review: string[] — field names flagged for human review (mismatches or
+ *   low confidence).
+ */
+function buildRows(fields, needsReview) {
+  const reviewSet = new Set(needsReview ?? [])
+
+  return Object.entries(fields).map(([label, field]) => {
+    const isMismatch = reviewSet.has(label)
+    const isSingle   = field.source === 'single_source'
+
+    // The backend merges PDF + Excel into one value. Where both exist it picks
+    // the higher-confidence one and flags mismatches. We surface the merged
+    // value in both columns unless there is only a single source.
+    const pdfValue   = field.value ?? ''
+    const excelValue = isSingle ? null : (field.excel_value ?? field.value ?? '')
+
+    return { label, pdfValue, excelValue, isMismatch, isSingle, confidence: field.confidence }
+  })
+}
+
 export default function VendorComparePage() {
-  const navigate   = useNavigate()
-  const [loading,  setLoading] = useState(false)
-  const mismatchCount = FIELDS.filter(f => f.excel !== null && f.mismatch).length
+  const navigate      = useNavigate()
+  const location      = useLocation()
+  const [loading, setLoading] = useState(false)
+
+  // Receive the extraction result that VendorUploadPage passed via navigation state
+  const result = location.state?.result
+
+  // If user lands here directly without going through upload, redirect back
+  if (!result) {
+    return (
+      <>
+        <NavBar />
+        <div className="page-wrapper">
+          <main className="page-content">
+            <p style={{ color: 'var(--color-text-muted)', marginTop: 40 }}>
+              No extraction data found.{' '}
+              <a className="back-link" onClick={() => navigate('/vendor/upload')} style={{ cursor: 'pointer', display: 'inline' }}>
+                Go back to Upload
+              </a>
+            </p>
+          </main>
+        </div>
+      </>
+    )
+  }
+
+  const rows          = buildRows(result.fields ?? {}, result.needs_review ?? [])
+  const mismatchCount = rows.filter(r => r.isMismatch).length
+  const hasXlsx       = result.files?.includes('xlsx')
 
   function handleSubmit() {
     setLoading(true)
-    setTimeout(() => navigate('/vendor/confirm'), 1000)
+    setTimeout(() => navigate('/vendor/confirm', { state: { result } }), 800)
   }
 
   return (
@@ -65,64 +99,91 @@ export default function VendorComparePage() {
           </a>
 
           <h1 className="page-title">Vendor Creation</h1>
+
+          {/* Timing pill */}
+          {result.timings && (
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-subtle)', marginBottom: 4 }}>
+              Extracted {result.summary?.filled ?? 0}/{result.summary?.total_fields ?? 0} fields
+              in {result.timings.total}s
+            </p>
+          )}
+
           <Stepper steps={VENDOR_STEPS} currentStep={1} />
 
           <div className="table-wrapper" role="region" aria-label="Vendor data comparison" tabIndex={0}>
             <table className="compare-table">
               <caption className="sr-only">
-                Comparison of vendor fields extracted from the PDF and Excel files
+                Extracted vendor fields — review before submitting to Business Central
               </caption>
               <thead>
                 <tr>
                   <th scope="col">Field</th>
-                  <th scope="col">PDF Value</th>
-                  <th scope="col">Excel Value</th>
+                  <th scope="col">Extracted Value</th>
+                  <th scope="col">Excel / Template Value</th>
                   <th scope="col">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {FIELDS.map(row => {
-                  const isSingle   = row.excel === null
-                  const isMismatch = !isSingle && row.mismatch === true
-                  return (
-                    <tr key={row.label} className={isMismatch ? 'row-mismatch' : ''}>
-                      <td>{row.label}</td>
-                      <td className={isMismatch ? 'val-mismatch' : ''}>{row.pdf}</td>
-                      <td>
-                        {isSingle
-                          ? <span className="val-absent">Not present in Excel</span>
-                          : <span className={isMismatch ? 'val-mismatch' : ''}>{row.excel}</span>}
-                      </td>
-                      <td>
-                        {isSingle   && <span className="badge badge--neutral">Single source</span>}
-                        {isMismatch && <span className="badge badge--warning">Mismatch</span>}
-                        {!isSingle && !isMismatch && <span className="badge badge--success">Match</span>}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {rows.map(row => (
+                  <tr key={row.label} className={row.isMismatch ? 'row-mismatch' : ''}>
+                    <td>{row.label}</td>
+                    <td className={row.isMismatch ? 'val-mismatch' : ''}>{row.pdfValue}</td>
+                    <td>
+                      {row.isSingle
+                        ? <span className="val-absent">Not in template</span>
+                        : <span className={row.isMismatch ? 'val-mismatch' : ''}>{row.excelValue}</span>}
+                    </td>
+                    <td>
+                      {row.isSingle    && <span className="badge badge--neutral">Single source</span>}
+                      {row.isMismatch  && <span className="badge badge--warning">Review</span>}
+                      {!row.isSingle && !row.isMismatch && <span className="badge badge--success">Match</span>}
+                    </td>
+                  </tr>
+                ))}
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-text-subtle)', padding: '28px 0' }}>
+                      No fields extracted. Try uploading clearer documents.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="action-bar">
             <div className="action-bar-inner">
+
+              {/* Download filled Excel if available */}
+              {hasXlsx && (
+                <a
+                  href={downloadUrl(result.run_id, 'xlsx')}
+                  download
+                  className="btn btn-outline"
+                  style={{ marginRight: 8 }}
+                >
+                  <DownloadIcon /> Download filled Excel
+                </a>
+              )}
+
               {mismatchCount > 0 && (
                 <div className="mismatch-warning" aria-live="polite">
-                  <WarnIcon /> Resolve all mismatches before submitting.
+                  <WarnIcon /> {mismatchCount} field{mismatchCount > 1 ? 's' : ''} flagged for review — check before submitting.
                 </div>
               )}
+
               <button
                 type="button"
                 className="btn btn-primary"
                 id="submit-btn"
-                disabled={mismatchCount > 0 || loading}
+                disabled={loading}
                 onClick={handleSubmit}
                 aria-label="Validate and submit vendor data to Business Central"
               >
                 {loading && <span className="btn-spinner" aria-hidden="true" />}
                 <span>Validate &amp; Submit →</span>
               </button>
+
             </div>
           </div>
 

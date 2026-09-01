@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import Stepper from '../components/Stepper'
 import FileDropzone from '../components/FileDropzone'
+import { extractDocuments } from '../api'
 
 const VENDOR_STEPS = [
   { label: 'Upload' },
@@ -14,6 +15,7 @@ export default function VendorUploadPage() {
   const navigate  = useNavigate()
   const [files,   setFiles]   = useState([])
   const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
 
   const hasPDF   = files.some(f => f.type === 'pdf')
   const hasExcel = files.some(f => f.type === 'excel')
@@ -29,10 +31,24 @@ export default function VendorUploadPage() {
     hintText = `Add ${missing.join(' and ')} to continue.`
   }
 
-  function handleExtract() {
+  async function handleExtract() {
     if (!ready) return
     setLoading(true)
-    setTimeout(() => navigate('/vendor/compare'), 1200)
+    setError('')
+
+    try {
+      // Separate PDFs (source documents) from the Excel template
+      const docFiles      = files.filter(f => f.type !== 'excel').map(f => f.fileObject)
+      const templateFile  = files.find(f => f.type === 'excel')?.fileObject ?? null
+
+      const result = await extractDocuments(docFiles, templateFile)
+
+      // Pass extraction result forward via React Router location state
+      navigate('/vendor/compare', { state: { result } })
+    } catch (err) {
+      setError(err.message || 'Extraction failed. Is the backend running?')
+      setLoading(false)
+    }
   }
 
   return (
@@ -47,6 +63,19 @@ export default function VendorUploadPage() {
 
           <h1 className="page-title">Vendor Creation</h1>
           <Stepper steps={VENDOR_STEPS} currentStep={0} />
+
+          {/* API error banner */}
+          {error && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#FEF2F2', border: '1px solid #FECACA',
+              borderRadius: 10, padding: '11px 14px',
+              fontSize: '0.85rem', color: '#991B1B', fontWeight: 500,
+              marginBottom: 20,
+            }} role="alert">
+              ⚠ {error}
+            </div>
+          )}
 
           <FileDropzone
             files={files}
@@ -73,7 +102,7 @@ export default function VendorUploadPage() {
                 aria-label="Extract and compare vendor data from uploaded files"
               >
                 {loading && <span className="btn-spinner" aria-hidden="true" />}
-                <span>Extract &amp; Compare →</span>
+                <span>{loading ? 'Extracting…' : 'Extract & Compare →'}</span>
               </button>
             </div>
           </div>

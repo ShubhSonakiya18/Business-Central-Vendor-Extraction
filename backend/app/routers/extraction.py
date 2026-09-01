@@ -155,6 +155,7 @@ def _run_as_json(run_id: str):
         "needs_review": run.get("needs_review"),
         "documents": run.get("documents"),
         "summary": run.get("summary"),
+        "report": run.get("report"),
         "verification": run.get("verification"),
         "timings": run.get("timings"),
         "files": sorted(run.get("files", {})),

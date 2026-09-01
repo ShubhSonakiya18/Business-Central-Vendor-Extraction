@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import Stepper from '../components/Stepper'
 import FileDropzone from '../components/FileDropzone'
+import { extractDocuments } from '../api'
 
 const CUSTOMER_STEPS = [
   { label: 'Upload' },
@@ -14,13 +15,25 @@ export default function CustomerUploadPage() {
   const navigate  = useNavigate()
   const [files,   setFiles]   = useState([])
   const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
 
   const ready = files.length > 0
 
-  function handleExtract() {
+  async function handleExtract() {
     if (!ready) return
     setLoading(true)
-    setTimeout(() => navigate('/customer/review'), 1200)
+    setError('')
+
+    try {
+      // All uploaded files go as documents; no Excel template for customer flow
+      const docFiles = files.map(f => f.fileObject)
+      const result   = await extractDocuments(docFiles, null)
+
+      navigate('/customer/review', { state: { result } })
+    } catch (err) {
+      setError(err.message || 'Extraction failed. Is the backend running?')
+      setLoading(false)
+    }
   }
 
   return (
@@ -35,6 +48,19 @@ export default function CustomerUploadPage() {
 
           <h1 className="page-title">Customer Creation</h1>
           <Stepper steps={CUSTOMER_STEPS} currentStep={0} />
+
+          {/* API error banner */}
+          {error && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#FEF2F2', border: '1px solid #FECACA',
+              borderRadius: 10, padding: '11px 14px',
+              fontSize: '0.85rem', color: '#991B1B', fontWeight: 500,
+              marginBottom: 20,
+            }} role="alert">
+              ⚠ {error}
+            </div>
+          )}
 
           <FileDropzone
             files={files}
@@ -66,7 +92,7 @@ export default function CustomerUploadPage() {
                 aria-label="Extract fields from uploaded documents"
               >
                 {loading && <span className="btn-spinner" aria-hidden="true" />}
-                <span>Extract Fields →</span>
+                <span>{loading ? 'Extracting…' : 'Extract Fields →'}</span>
               </button>
             </div>
           </div>

@@ -1,29 +1,10 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import Stepper from '../components/Stepper'
 import './CustomerReviewPage.css'
 
 const CUSTOMER_STEPS = [{ label: 'Upload' }, { label: 'Review' }, { label: 'Submit' }]
-
-const FIELDS = [
-  { id: 'company-name',   label: 'Company Name',                   value: 'Apex Global Logistics Pvt Ltd',        conf: 98,  low: false },
-  { id: 'contact-name',  label: 'Contact Name',                    value: 'Vikram Malhotra',                      conf: 95,  low: false },
-  { id: 'billing-addr',  label: 'Billing Address',                 value: 'Plot No. 88, Udyog Vihar Phase IV, Cyber City', conf: 92, low: false, fullWidth: true },
-  { id: 'city',          label: 'City',                            value: 'Gurugram',                             conf: 99,  low: false },
-  { id: 'state',         label: 'State',                           value: 'Haryana',                              conf: 99,  low: false },
-  { id: 'zip-code',      label: 'Zip / Pin Code',                  value: '122015',                               conf: 94,  low: false },
-  { id: 'country',       label: 'Country',                         value: 'India',                                conf: 100, low: false },
-  { id: 'gst-no',        label: 'GST (ABN/TRN) Reg. Cert. No.',   value: '06AAACA4512P1ZV',                       conf: 61,  low: true },
-  { id: 'pan-no',        label: 'PAN Card No. (Company/Individual)', value: 'AAACA4512P',                         conf: 89,  low: false },
-  { id: 'email-to',      label: 'Email ID TO',                     value: 'billing@apexlogistics.in',             conf: 96,  low: false },
-  { id: 'email-cc',      label: 'Email ID CC',                     value: 'v.malhotra@apexlogistics.in',          conf: 91,  low: false },
-  { id: 'phone-no',      label: 'Phone Number',                    value: '+91-124-4982100',                      conf: 93,  low: false },
-  { id: 'payment-terms', label: 'Payment Terms',                   value: 'Net 30 Days',                          conf: 97,  low: false },
-  { id: 'salesperson',   label: 'Salesperson',                     value: 'Amit Sharma (SP-104)',                  conf: 90,  low: false },
-  { id: 'region',        label: 'Region',                          value: 'North India / NCR',                    conf: 99,  low: false },
-  { id: 'type',          label: 'Type (Services / License)',        value: 'Services & SaaS Subscription',        conf: 95,  low: false, fullWidth: true },
-]
 
 const DocsIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
@@ -36,16 +17,81 @@ const DocsIcon = () => (
   </svg>
 )
 
+/**
+ * Convert a confidence float (0–1) into a display percentage and tier.
+ * Backend may return 0-1 floats or 0-100 integers — normalise both.
+ */
+function parseConf(raw) {
+  if (raw == null) return { pct: null, low: false }
+  const pct = raw > 1 ? Math.round(raw) : Math.round(raw * 100)
+  return { pct, low: pct < 85 }
+}
+
+/**
+ * Build a flat list of { id, label, value, conf, low, fullWidth } rows from
+ * the backend fields map.
+ */
+function buildFields(fields, needsReview) {
+  const reviewSet = new Set(needsReview ?? [])
+  // Fields that span both grid columns (addresses, long free-text)
+  const FULL_WIDTH_KEYS = new Set([
+    'billing_address', 'address', 'billing address', 'address 1',
+    'type', 'type (services / license)', 'services',
+  ])
+
+  return Object.entries(fields ?? {}).map(([key, field]) => {
+    const { pct, low } = parseConf(field.confidence)
+    const isLow = low || reviewSet.has(key)
+    const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    const fullWidth = FULL_WIDTH_KEYS.has(key.toLowerCase())
+
+    return {
+      id:    key,
+      label,
+      value: field.value ?? '',
+      pct,
+      low:   isLow,
+      fullWidth,
+    }
+  })
+}
+
 export default function CustomerReviewPage() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const location  = useLocation()
   const [loading, setLoading] = useState(false)
+
+  const result = location.state?.result
+
+  // Redirect if landed here without going through upload
+  if (!result) {
+    return (
+      <>
+        <NavBar />
+        <div className="page-wrapper">
+          <main className="page-content">
+            <p style={{ color: 'var(--color-text-muted)', marginTop: 40 }}>
+              No extraction data found.{' '}
+              <a className="back-link" onClick={() => navigate('/customer/upload')} style={{ cursor: 'pointer', display: 'inline' }}>
+                Go back to Upload
+              </a>
+            </p>
+          </main>
+        </div>
+      </>
+    )
+  }
+
+  const fieldDefs = buildFields(result.fields, result.needs_review)
   const [fieldValues, setFieldValues] = useState(
-    Object.fromEntries(FIELDS.map(f => [f.id, f.value]))
+    Object.fromEntries(fieldDefs.map(f => [f.id, f.value]))
   )
+
+  const uploadedFiles = result.documents ?? []
 
   function handleSubmit() {
     setLoading(true)
-    setTimeout(() => navigate('/customer/confirm'), 1000)
+    setTimeout(() => navigate('/customer/confirm', { state: { result } }), 1000)
   }
 
   return (
@@ -59,53 +105,74 @@ export default function CustomerReviewPage() {
           </a>
 
           <h1 className="page-title">Customer Creation</h1>
+
+          {/* Extraction summary */}
+          {result.timings && (
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-subtle)', marginBottom: 4 }}>
+              Extracted {result.summary?.filled ?? 0}/{result.summary?.total_fields ?? 0} fields
+              in {result.timings.total}s
+            </p>
+          )}
+
           <Stepper steps={CUSTOMER_STEPS} currentStep={1} />
 
           <div className="review-card" role="region" aria-label="Extracted Customer Fields">
-            <div className="fields-grid">
-              {FIELDS.map(f => (
-                <div
-                  key={f.id}
-                  className={`form-group${f.fullWidth ? ' field-span-full' : ''}`}
-                  style={{ marginBottom: 0 }}
-                >
-                  <div className="field-header">
-                    <label
-                      className="field-label"
-                      htmlFor={f.id}
-                      style={f.low ? { color: 'var(--color-warning)' } : undefined}
-                    >
-                      {f.label}
-                    </label>
-                    <span className={`conf-badge${f.low ? ' conf-low' : ' conf-high'}`}
-                          title={`${f.conf}% confidence`}>
-                      {f.conf}% {f.low ? 'review' : 'match'}
-                    </span>
-                  </div>
-                  <input
-                    id={f.id}
-                    type="text"
-                    className={`form-input${f.low ? ' input-low-confidence' : ''}`}
-                    value={fieldValues[f.id]}
-                    onChange={e => setFieldValues(prev => ({ ...prev, [f.id]: e.target.value }))}
-                  />
-                </div>
-              ))}
-            </div>
 
-            {/* Attached docs summary */}
-            <div className="attached-docs-card">
-              <div className="attached-docs-info">
-                <div className="docs-icon"><DocsIcon /></div>
-                <div>
-                  <div className="docs-title">Attached Customer Agreement &amp; Supporting Documents</div>
-                  <div className="docs-sub">
-                    Customer_Agreement_Apex_2026.pdf · GST_Registration_Cert.pdf · Board_Resolution_Signed.pdf
+            {fieldDefs.length > 0 ? (
+              <div className="fields-grid">
+                {fieldDefs.map(f => (
+                  <div
+                    key={f.id}
+                    className={`form-group${f.fullWidth ? ' field-span-full' : ''}`}
+                    style={{ marginBottom: 0 }}
+                  >
+                    <div className="field-header">
+                      <label
+                        className="field-label"
+                        htmlFor={f.id}
+                        style={f.low ? { color: 'var(--color-warning)' } : undefined}
+                      >
+                        {f.label}
+                      </label>
+                      {f.pct != null && (
+                        <span
+                          className={`conf-badge ${f.low ? 'conf-low' : 'conf-high'}`}
+                          title={`${f.pct}% confidence`}
+                        >
+                          {f.pct}% {f.low ? 'review' : 'match'}
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      id={f.id}
+                      type="text"
+                      className={`form-input${f.low ? ' input-low-confidence' : ''}`}
+                      value={fieldValues[f.id] ?? ''}
+                      onChange={e => setFieldValues(prev => ({ ...prev, [f.id]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--color-text-subtle)', padding: '24px 0', textAlign: 'center' }}>
+                No fields were extracted. The documents may be unsupported or unreadable.
+              </p>
+            )}
+
+            {/* Attached documents summary */}
+            {uploadedFiles.length > 0 && (
+              <div className="attached-docs-card">
+                <div className="attached-docs-info">
+                  <div className="docs-icon" aria-hidden="true"><DocsIcon /></div>
+                  <div>
+                    <div className="docs-title">Attached Documents</div>
+                    <div className="docs-sub">{uploadedFiles.join(' · ')}</div>
                   </div>
                 </div>
+                <span className="docs-pill">{uploadedFiles.length} File{uploadedFiles.length > 1 ? 's' : ''} Verified</span>
               </div>
-              <span className="docs-pill">3 Files Verified</span>
-            </div>
+            )}
+
           </div>
 
           <div className="action-bar" style={{ marginTop: 32 }}>
@@ -113,7 +180,7 @@ export default function CustomerReviewPage() {
               type="button"
               className="btn btn-primary"
               id="validate-btn"
-              disabled={loading}
+              disabled={loading || fieldDefs.length === 0}
               onClick={handleSubmit}
               aria-label="Validate and submit customer to Business Central"
             >
