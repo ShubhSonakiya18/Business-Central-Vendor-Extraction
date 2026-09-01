@@ -38,6 +38,38 @@ DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 DEFAULT_OCR_MODELS = "small"
 DEFAULT_MAPPING = "vendor_creation_v1"
 
+# Render DPI for RapidOCR, the active default engine as of 2026-09-01
+# (OCR_BACKEND=rapidocr). The preserved PaddleOCR fallback stays at
+# extraction_pipeline.models.RENDER_DPI (200) -- this is deliberately
+# separate rather than raising that shared constant, because RENDER_DPI also
+# sizes the synthetic DOCX coordinate space (document_loader.py: DOCX_PAGE_W/H,
+# margins, line height), and a global bump would rescale that for a backend
+# it was never asked for. document_loader._default_dpi_for() picks the right
+# one automatically based on which engine is actually active.
+#
+# SUPERSEDED 2026-09-01: 125 DPI (set 2026-08-31) was chosen from a sweep
+# that only ever tested threads=4, so it could not see a thread x DPI
+# interaction. A later 12-rep, 16-config (threads x DPI) isolated sweep
+# -- full latency stats (median/P90/stdev/CV) plus per-config identifier
+# self-consistency AND agreement with a PaddleOCR reference, not median
+# speed alone -- found threads=8 at DPI=125 is the least stable config in
+# the whole grid (CV=0.40, spiked to 70s vs a 26s median), while threads=8
+# at DPI=100 is both the fastest AND most stable config measured overall:
+# 19.72s median, P90 19.90s, CV=0.01, zero identifier mismatches across 12
+# reps. This DPI change is paired with intra_op_num_threads=8 (see
+# ocr_engine.RapidOCRTuning) -- the two were not validated independently at
+# any other combination, so do not change one without re-checking the other
+# against the sweep data (see plan.md).
+#
+# All prior finding retained: RapidOCR's max_side_len (3508 by default, see
+# RapidOCRTuning) is only a ceiling, so it stays safely unheeded at 100 DPI.
+# If this is later raised past ~300 DPI on an A4 page, max_side_len needs
+# raising in lockstep (>= ceil(11.69 * dpi)) or the extra resolution is
+# silently downscaled straight back off before detection ever sees it --
+# set OCR_RAPID_MAX_SIDE_LEN accordingly, or pass --ocr-tune
+# max_side_len=... on the CLI.
+RAPID_RENDER_DPI = int(os.environ.get("VENDOR_RAPID_RENDER_DPI", "100"))
+
 LOG_LEVEL = os.environ.get("VENDOR_LOG_LEVEL", "INFO").upper()
 
 
