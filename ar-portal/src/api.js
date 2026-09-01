@@ -20,7 +20,18 @@
  *     }
  */
 
-const BASE = '' // Vite proxy forwards to http://127.0.0.1:8000
+// Empty in dev: vite.config.js proxies these paths to 127.0.0.1:8000.
+// Set VITE_API_URL at build time (e.g. in Netlify) to point a static build at
+// a backend on another origin, such as an ngrok URL -- see ar-portal/.env.example.
+const BASE = import.meta.env.VITE_API_URL ?? ''
+
+// Free ngrok tunnels serve an HTML "you are about to visit..." interstitial
+// on a browser's first request to a given tunnel, which breaks fetch() --
+// the response is HTML, not the JSON the caller expects. This header
+// suppresses it. Harmless (ignored) against a same-origin dev proxy or any
+// non-ngrok backend, so it is sent unconditionally rather than only when
+// VITE_API_URL looks like an ngrok URL.
+const SKIP_NGROK_WARNING = { 'ngrok-skip-browser-warning': 'true' }
 
 /**
  * Run OCR extraction on uploaded documents.
@@ -40,6 +51,7 @@ export async function extractDocuments(documentFiles, templateFile = null, mappi
 
   const res = await fetch(`${BASE}/extract`, {
     method: 'POST',
+    headers: SKIP_NGROK_WARNING,
     body: formData,
   })
 
@@ -61,7 +73,7 @@ export async function extractDocuments(documentFiles, templateFile = null, mappi
  * @returns {Promise<object>}
  */
 export async function getRunResult(runId) {
-  const res = await fetch(`${BASE}/results/${runId}/json`)
+  const res = await fetch(`${BASE}/results/${runId}/json`, { headers: SKIP_NGROK_WARNING })
   if (!res.ok) throw new Error(`Could not load run ${runId}`)
   return res.json()
 }
@@ -83,7 +95,7 @@ export function downloadUrl(runId, kind) {
  * @returns {Promise<{status: string, fields: number, …}>}
  */
 export async function checkHealth() {
-  const res = await fetch(`${BASE}/health`)
+  const res = await fetch(`${BASE}/health`, { headers: SKIP_NGROK_WARNING })
   if (!res.ok) throw new Error('Backend health check failed')
   return res.json()
 }
