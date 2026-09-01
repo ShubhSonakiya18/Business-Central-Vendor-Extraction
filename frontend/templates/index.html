@@ -33,7 +33,7 @@
           </div>
 
           <div class="row">
-            <div class="col-md-6 mb-3">
+            <div class="{{ 'col-md-6' if ocr_backend == 'paddleocr' else 'col-12' }} mb-3">
               <label class="form-label">Excel Mapping</label>
               <select class="form-select" name="mapping">
                 {% for m in mappings %}
@@ -41,6 +41,7 @@
                 {% endfor %}
               </select>
             </div>
+            {% if ocr_backend == "paddleocr" %}
             <div class="col-md-6 mb-3">
               <label class="form-label">OCR Model</label>
               <select class="form-select" name="models">
@@ -49,6 +50,7 @@
                 <option value="tiny">tiny &mdash; fastest, can hallucinate</option>
               </select>
             </div>
+            {% endif %}
           </div>
 
           <div class="mb-4">

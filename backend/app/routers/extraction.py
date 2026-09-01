@@ -43,11 +43,20 @@ def render_error(request: Request, error: PipelineError):
 @router.get("/")
 def home(request: Request):
     from app.services.extraction_pipeline.excel.excel_mapper import ExcelMapper
+    from app.services.extraction_pipeline.ingest.ocr_engine import OCREngine
 
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"mappings": ExcelMapper.available() or [DEFAULT_MAPPING]},
+        {
+            "mappings": ExcelMapper.available() or [DEFAULT_MAPPING],
+            # The OCR Model selector (small/medium/tiny) only affects
+            # PaddleOCR's det/rec model size -- RapidOCR ignores it entirely.
+            # Hide it while RapidOCR is active rather than show a control
+            # that silently does nothing (see ocr_engine.py PRESERVED
+            # FALLBACK). Comes back automatically if paddleocr is restored.
+            "ocr_backend": OCREngine().backend,
+        },
     )
 
 
