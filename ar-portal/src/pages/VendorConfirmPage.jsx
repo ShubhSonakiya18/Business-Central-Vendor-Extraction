@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import Stepper from '../components/Stepper'
 import './ConfirmPage.css'
@@ -14,6 +14,15 @@ const CheckIcon = () => (
 
 export default function VendorConfirmPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Passed from VendorComparePage's handleSubmit() via navigate(..., { state }).
+  // A direct visit to /vendor/confirm (refresh, bookmark, back-button after
+  // history changes) has no state, so fall back to a generic message rather
+  // than a name that isn't this visit's vendor.
+  const result     = location.state?.result
+  const vendorName = result?.fields?.vendor_name?.value
+
   return (
     <>
       <NavBar />
@@ -29,8 +38,9 @@ export default function VendorConfirmPage() {
             <h1 className="success-heading">Vendor created successfully</h1>
 
             <p className="success-sub">
-              <strong>Rajesh Enterprises Pvt Ltd</strong> has been added to Business Central
-              and is ready for use.
+              {vendorName
+                ? <><strong>{vendorName}</strong> has been added to Business Central and is ready for use.</>
+                : 'The vendor has been added to Business Central and is ready for use.'}
             </p>
 
             <div className="btn-group" role="group" aria-label="Next steps">

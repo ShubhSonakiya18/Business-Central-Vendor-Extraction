@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import Stepper from '../components/Stepper'
 import './ConfirmPage.css'
@@ -14,6 +14,14 @@ const CheckIcon = () => (
 
 export default function CustomerConfirmPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Passed from CustomerReviewPage's handleSubmit() via navigate(..., { state }).
+  // A direct visit to /customer/confirm has no state, so fall back to a
+  // generic message rather than a name that isn't this visit's customer.
+  const result       = location.state?.result
+  const customerName = result?.fields?.vendor_name?.value
+
   return (
     <>
       <NavBar />
@@ -29,8 +37,9 @@ export default function CustomerConfirmPage() {
             <h1 className="success-heading">Customer created successfully</h1>
 
             <p className="success-sub">
-              <strong>Apex Global Logistics Pvt Ltd</strong> has been added to Business Central
-              and is ready for use.
+              {customerName
+                ? <><strong>{customerName}</strong> has been added to Business Central and is ready for use.</>
+                : 'The customer has been added to Business Central and is ready for use.'}
             </p>
 
             <div className="btn-group" role="group" aria-label="Next steps">
