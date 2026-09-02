@@ -22,7 +22,10 @@ from app.config.settings import (
 )
 from app.routers.extraction import router
 from app.routers.onboarding import router as onboarding_router
+from app.database.db import get_db, Base, engine
+from app.routers.auth import router as auth_router
 
+Base.metadata.create_all(bind=engine)
 
 def create_app() -> FastAPI:
     configure_logging()
@@ -46,6 +49,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(router)
     app.include_router(onboarding_router)
+    app.include_router(auth_router)
     return app
 
 
