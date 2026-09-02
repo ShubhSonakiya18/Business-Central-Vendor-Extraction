@@ -23,7 +23,7 @@
 // Empty in dev: vite.config.js proxies these paths to 127.0.0.1:8000.
 // Set VITE_API_URL at build time (e.g. in Netlify) to point a static build at
 // a backend on another origin, such as an ngrok URL -- see ar-portal/.env.example.
-const BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'https://tall-bugs-end.loca.lt'
+const BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ''
 
 const SKIP_NGROK_WARNING = {
   'ngrok-skip-browser-warning': 'true',
