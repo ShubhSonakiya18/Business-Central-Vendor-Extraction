@@ -57,7 +57,7 @@ export async function extractDocuments(documentFiles, templateFile = null, mappi
 
   if (!res.ok) {
     let errBody = {}
-    try { errBody = await res.json() } catch (_) {}
+    try { errBody = await res.json() } catch (_) { }
     const msg = errBody.error || errBody.detail || `Server error ${res.status}`
     throw new Error(msg)
   }
