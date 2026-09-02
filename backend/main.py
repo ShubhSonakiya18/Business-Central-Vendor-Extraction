@@ -21,6 +21,7 @@ from app.config.settings import (
     ensure_directories,
 )
 from app.routers.extraction import router
+from app.routers.onboarding import router as onboarding_router
 
 
 def create_app() -> FastAPI:
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(router)
+    app.include_router(onboarding_router)
     return app
 
 
