@@ -23,15 +23,13 @@
 // Empty in dev: vite.config.js proxies these paths to 127.0.0.1:8000.
 // Set VITE_API_URL at build time (e.g. in Netlify) to point a static build at
 // a backend on another origin, such as an ngrok URL -- see ar-portal/.env.example.
-const BASE = import.meta.env.VITE_API_URL ?? ''
+const BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'https://tall-bugs-end.loca.lt'
 
-// Free ngrok tunnels serve an HTML "you are about to visit..." interstitial
-// on a browser's first request to a given tunnel, which breaks fetch() --
-// the response is HTML, not the JSON the caller expects. This header
-// suppresses it. Harmless (ignored) against a same-origin dev proxy or any
-// non-ngrok backend, so it is sent unconditionally rather than only when
-// VITE_API_URL looks like an ngrok URL.
-const SKIP_NGROK_WARNING = { 'ngrok-skip-browser-warning': 'true' }
+const SKIP_NGROK_WARNING = {
+  'ngrok-skip-browser-warning': 'true',
+  'Bypass-Tunnel-Reminder': 'true',
+  'bypass-tunnel-reminder': 'true',
+}
 
 /**
  * Run OCR extraction on uploaded documents.
