@@ -5,7 +5,9 @@ from app.database.db import get_db
 from app.schemas.auth_schema import UserCreate, UserLogin, UserOut, TokenPair, RefreshRequest
 from app.services.auth_services.security import verify_password, create_access_token, create_refresh_token, decode_token
 from app.services.auth_services.crud import create_user, get_user_by_email, store_refresh_token, get_valid_refresh_token, revoke_refresh_token
-from app.config.logger import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

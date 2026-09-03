@@ -176,6 +176,14 @@ def to_onboarding_schema(result: ExtractionResult) -> dict[str, Any]:
         "email_id_to": _value(result, "email"),
         "email_id_cc": "",
         "phone_number": _value(result, "telephone"),
+        # Business fields that no uploaded document contains -- returned as
+        # empty (type defaults to "Services") so the schema matches the
+        # customer form's 17 fields. The reviewer fills these in on-screen.
+        "payment_terms": "",
+        "salesperson": "",
+        "region": "",
+        "customer_agreement": "",
+        "type": "Services",
         "bank_details": {
             "bank_name": _value(result, "bank_name"),
             "account_number": _value(result, "account_number"),
