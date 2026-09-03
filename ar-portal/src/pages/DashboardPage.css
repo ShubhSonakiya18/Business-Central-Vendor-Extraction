@@ -1,0 +1,114 @@
+/* ── Greeting ── */
+.greeting-section { margin-bottom: 42px; }
+
+.greeting-heading {
+  font-family: var(--font-serif);
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--color-text-heading);
+  margin-bottom: 10px;
+  letter-spacing: -0.3px;
+}
+
+.greeting-sub {
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+}
+
+/* ── Action cards ── */
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 760px;
+}
+
+.action-card {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px 28px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  outline: none;
+}
+
+.action-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(27,94,94,.05) 0%, transparent 55%);
+  opacity: 0;
+  transition: opacity 0.22s;
+}
+
+.action-card:hover,
+.action-card:focus-visible {
+  box-shadow: var(--shadow-card-hover);
+  border-color: rgba(27,94,94,.45);
+  transform: translateY(-3px);
+}
+
+.action-card:hover::before { opacity: 1; }
+.action-card:active { transform: translateY(-1px); }
+
+.action-card-icon {
+  width: 52px;
+  height: 52px;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  transition: background 0.22s;
+  flex-shrink: 0;
+}
+.action-card-icon svg {
+  width: 26px;
+  height: 26px;
+  color: var(--color-primary);
+}
+.action-card:hover .action-card-icon { background: rgba(27,94,94,.15); }
+
+.action-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-heading);
+  margin-bottom: 10px;
+  letter-spacing: -0.1px;
+}
+
+.action-card-desc {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  line-height: 1.65;
+  flex: 1;
+}
+
+.action-card-cta {
+  margin-top: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.22s, transform 0.22s;
+}
+.action-card-cta svg { width: 14px; height: 14px; }
+.action-card:hover .action-card-cta { opacity: 1; transform: translateX(0); }
+
+@media (max-width: 640px) {
+  .action-grid { grid-template-columns: 1fr; }
+  .greeting-heading { font-size: 1.7rem; }
+}

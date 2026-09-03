@@ -1,0 +1,17 @@
+# Lives inside ar-portal/ (the configured base directory), not the repo root
+# -- Netlify only reads netlify.toml relative to the base directory once one
+# is set via the dashboard UI. A copy at the repo root is NOT picked up in
+# that case (confirmed: deploy logs showed "No config file was defined").
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# react-router-dom (BrowserRouter) uses client-side routing: every route
+# except / is not a real file on Netlify's CDN. Without this, a deep link or
+# a page refresh on e.g. /dashboard returns Netlify's own 404, not the app.
+# Rewriting every path to index.html and letting the client-side router take
+# over is the standard fix for any client-routed SPA host.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

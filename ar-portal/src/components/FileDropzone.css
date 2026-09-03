@@ -1,0 +1,143 @@
+/* ── Dropzone ── */
+.dropzone {
+  background: var(--color-surface);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 28px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.dropzone.dragover {
+  border-color: var(--color-primary);
+  border-style: solid;
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 4px var(--color-primary-ring);
+}
+
+.dropzone.has-files {
+  align-items: flex-start;
+  justify-content: flex-start;
+  cursor: default;
+  min-height: 120px;
+}
+
+.drop-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.drop-empty-icon {
+  width: 54px;
+  height: 54px;
+  background: #F3F4F6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drop-empty-icon svg { width: 26px; height: 26px; color: var(--color-text-subtle); }
+
+.drop-empty-label { font-size: 0.95rem; font-weight: 500; color: var(--color-text-muted); }
+.drop-empty-hint  { font-size: 0.78rem; color: var(--color-text-subtle); }
+
+/* ── File chips ── */
+.file-chips { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #F8FAFC;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.83rem;
+  color: var(--color-text-body);
+  max-width: 300px;
+  transition: box-shadow 0.15s;
+}
+.file-chip:hover { box-shadow: 0 1px 4px rgba(17,24,39,.08); }
+
+.chip-type {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.chip-type--pdf   { background: #FEE2E2; color: #B91C1C; }
+.chip-type--excel { background: #DCFCE7; color: #15803D; }
+.chip-type--other { background: #F1F5F9; color: #64748B; }
+
+.chip-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-subtle);
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.chip-remove:hover { color: #DC2626; background: #FEE2E2; }
+.chip-remove svg { width: 14px; height: 14px; }
+
+/* ── Controls below drop zone ── */
+.drop-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.helper-text {
+  font-size: 0.83rem;
+  color: var(--color-text-muted);
+  line-height: 1.65;
+  max-width: 580px;
+}
+
+/* ── Bottom action bar ── */
+.action-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 40px;
+}
+
+.action-bar-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.action-hint {
+  font-size: 0.78rem;
+  color: var(--color-text-subtle);
+  transition: color 0.2s;
+}
+.action-hint.ready { color: var(--color-success); font-weight: 500; }

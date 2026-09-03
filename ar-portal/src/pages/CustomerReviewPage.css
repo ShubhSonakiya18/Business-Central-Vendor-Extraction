@@ -1,0 +1,129 @@
+/* ── Review card & grid ── */
+.review-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 24px;
+}
+
+.fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 28px;
+}
+
+.field-span-full { grid-column: 1 / -1; }
+
+/* ── Field header ── */
+.field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.field-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Confidence badges */
+.conf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.conf-high {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border: 1px solid rgba(22,163,74,.2);
+}
+
+.conf-low {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  border: 1px solid rgba(217,90,43,.25);
+}
+
+/* Low-confidence input */
+.input-low-confidence {
+  background: #FFF5F2 !important;
+  border-color: #F87171 !important;
+  color: #991B1B !important;
+  font-weight: 500;
+}
+.input-low-confidence:focus {
+  border-color: var(--color-warning) !important;
+  box-shadow: 0 0 0 3.5px rgba(217,90,43,.25) !important;
+  background: #FEF2F2 !important;
+}
+
+/* ── Attached docs card ── */
+.attached-docs-card {
+  background: #F8FAFC;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.attached-docs-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.docs-icon {
+  width: 38px;
+  height: 38px;
+  background: var(--color-primary-light);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.docs-icon svg { width: 20px; height: 20px; color: var(--color-primary); }
+
+.docs-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--color-text-heading);
+  margin-bottom: 2px;
+}
+
+.docs-sub { font-size: 0.78rem; color: var(--color-text-muted); }
+
+.docs-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Action bar reuse */
+.action-bar { display: flex; justify-content: flex-end; }
+
+@media (max-width: 768px) {
+  .fields-grid { grid-template-columns: 1fr; }
+  .review-card { padding: 24px 20px; }
+  .attached-docs-card { flex-direction: column; align-items: flex-start; }
+}
