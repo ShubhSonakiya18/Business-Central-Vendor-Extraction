@@ -12,10 +12,10 @@ const CUSTOMER_STEPS = [
 ]
 
 export default function CustomerUploadPage() {
-  const navigate  = useNavigate()
-  const [files,   setFiles]   = useState([])
+  const navigate = useNavigate()
+  const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
+  const [error, setError] = useState('')
 
   const ready = files.length > 0
 
@@ -27,7 +27,7 @@ export default function CustomerUploadPage() {
     try {
       // All uploaded files go as documents; no Excel template for customer flow
       const docFiles = files.map(f => f.fileObject)
-      const result   = await extractDocuments(docFiles, null)
+      const result = await extractDocuments(docFiles, null)
 
       navigate('/customer/review', { state: { result } })
     } catch (err) {
