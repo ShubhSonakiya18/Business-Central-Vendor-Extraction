@@ -219,6 +219,11 @@ export function deleteCustomer(id)         { return authFetch(`/customers/${id}`
 export function getVendorBcPayload(id)      { return authJson(`/business-central/vendors/${id}/payload`, 'GET') }
 export function markVendorPushed(id, bcNo)  { return authJson(`/business-central/vendors/${id}/mark-pushed`, 'PATCH', { bc_no: bcNo }) }
 
+/** Same manual-push flow as the vendor pair above, for a saved customer --
+ *  see backend/app/routers/business_central.py. */
+export function getCustomerBcPayload(id)     { return authJson(`/business-central/customers/${id}/payload`, 'GET') }
+export function markCustomerPushed(id, bcNo) { return authJson(`/business-central/customers/${id}/mark-pushed`, 'PATCH', { bc_no: bcNo }) }
+
 /** The pipeline's needs_review is a list of {field, reason} objects; the
  *  /vendors and /customers APIs want a plain list of field-name strings. */
 export function reviewFieldNames(needsReview) {
@@ -287,6 +292,40 @@ export async function extractDocuments(documentFiles, templateFile = null, mappi
   formData.append('models', 'small')
 
   const res = await fetch(`${BASE}/extract`, {
+    method: 'POST',
+    headers: SKIP_NGROK_WARNING,
+    body: formData,
+  })
+
+  if (!res.ok) {
+    let errBody = {}
+    try { errBody = await res.json() } catch (_) { }
+    const msg = errBody.error || errBody.detail || `Server error ${res.status}`
+    throw new Error(msg)
+  }
+
+  return res.json()
+}
+
+/**
+ * Run customer-onboarding extraction on uploaded documents.
+ *
+ * Hits POST /onboarding/extract, not /extract -- there is no vendor-style
+ * Excel template and no document-type field: each file is OCR'd and
+ * classified from its own content (cancelled cheque, GST certificate, Udyam
+ * certificate, PAN card, ...) automatically, then reshaped straight into the
+ * customer-onboarding form's fixed schema (company_name, billing_address,
+ * gst_registration_number, bank_details, ...). See
+ * backend/app/routers/onboarding.py and services/onboarding_mapper.py.
+ *
+ * @param {File[]} documentFiles – PDFs / images to extract from
+ * @returns {Promise<object>}    – the onboarding schema (see onboarding_mapper.py)
+ */
+export async function extractOnboardingDocuments(documentFiles) {
+  const formData = new FormData()
+  documentFiles.forEach(f => formData.append('documents', f))
+
+  const res = await fetch(`${BASE}/onboarding/extract`, {
     method: 'POST',
     headers: SKIP_NGROK_WARNING,
     body: formData,

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import {
   getVendorById, getCustomerById, getVendorBcPayload, markVendorPushed,
+  getCustomerBcPayload, markCustomerPushed,
   updateVendor, deleteVendor, updateCustomer, deleteCustomer,
 } from '../api'
 import './RecordsPage.css'
@@ -57,10 +58,12 @@ const CFG = {
   vendor: {
     fetch: getVendorById, update: updateVendor, remove: deleteVendor,
     groups: VENDOR_GROUPS, nameKey: 'vendor_name', title: 'Vendor',
+    bcFetch: getVendorBcPayload, bcMark: markVendorPushed,
   },
   customer: {
     fetch: getCustomerById, update: updateCustomer, remove: deleteCustomer,
     groups: CUSTOMER_GROUPS, nameKey: 'company_name', title: 'Customer',
+    bcFetch: getCustomerBcPayload, bcMark: markCustomerPushed,
   },
 }
 
@@ -94,7 +97,7 @@ export default function RecordDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  // BC manual-push panel state (vendor only)
+  // BC manual-push panel state (vendor and customer)
   const [bc, setBc] = useState(null)
   const [bcErr, setBcErr] = useState('')
   const [bcNoInput, setBcNoInput] = useState('')
@@ -169,7 +172,7 @@ export default function RecordDetailPage() {
 
   function fetchBcPayload() {
     setBcErr('')
-    getVendorBcPayload(id)
+    cfg.bcFetch(id)
       .then(setBc)
       .catch(err => {
         if (err.code === 'AUTH_EXPIRED') { navigate('/', { replace: true }); return }
@@ -190,7 +193,7 @@ export default function RecordDetailPage() {
       { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `vendor_${id}_bc.json`
+    a.download = `${kind}_${id}_bc.json`
     a.click()
     URL.revokeObjectURL(a.href)
   }
@@ -198,12 +201,12 @@ export default function RecordDetailPage() {
   function submitBcNo() {
     if (!bcNoInput.trim()) return
     setMarking(true); setBcErr('')
-    markVendorPushed(id, bcNoInput.trim())
+    cfg.bcMark(id, bcNoInput.trim())
       .then(() => { setMarking(false); loadRecord(); fetchBcPayload() })
       .catch(err => {
         setMarking(false)
         if (err.code === 'AUTH_EXPIRED') { navigate('/', { replace: true }); return }
-        setBcErr(err.status === 409 ? 'This vendor is already marked as pushed.' : (err.message || 'Could not save.'))
+        setBcErr(err.status === 409 ? `This ${cfg.title.toLowerCase()} is already marked as pushed.` : (err.message || 'Could not save.'))
       })
   }
 
@@ -309,7 +312,7 @@ export default function RecordDetailPage() {
                 </div>
               )}
 
-              {kind === 'vendor' && !editing && (
+              {!editing && (
                 <section className="record-group bc-panel">
                   <h2 className="record-group-title">Business Central</h2>
 

@@ -76,11 +76,14 @@ class Settings(BaseSettings):
     BC_ODATA_BASE: str = "http://ntz-srv-bcdb:2248/BC220/ODataV4"
     BC_COMPANY: str = "Netsmartz Infotech (India) Pri"
 
-    # Posting groups BC may require on a vendor insert. Left blank by default
-    # (an existing vendor in BC has Gen/VAT groups empty), sent only when set.
+    # Posting groups BC may require on a vendor/customer insert. Left blank by
+    # default (an existing vendor in BC has Gen/VAT groups empty), sent only
+    # when set. Gen/VAT posting groups are the same concept on both card
+    # types; Customer/Vendor posting group are card-specific, hence separate.
     BC_GEN_BUS_POSTING_GROUP: str = ""
     BC_VAT_BUS_POSTING_GROUP: str = ""
     BC_VENDOR_POSTING_GROUP: str = ""
+    BC_CUSTOMER_POSTING_GROUP: str = ""
 
     # -- Runtime data locations ----------------------------------------
     # Env overrides keep their historical VENDOR_* names.
