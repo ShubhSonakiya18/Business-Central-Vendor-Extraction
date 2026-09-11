@@ -257,12 +257,6 @@ export default function RecordDetailPage() {
                 </p>
               )}
 
-              {!editing && Array.isArray(rec.fields_needing_review) && rec.fields_needing_review.length > 0 && (
-                <p className="records-review-note">
-                  Flagged at extraction for review: {rec.fields_needing_review.join(', ')}
-                </p>
-              )}
-
               {editErr && <p className="records-error">{editErr}</p>}
 
               <div className="record-view">
@@ -339,6 +333,14 @@ export default function RecordDetailPage() {
 
                       {bc && (
                         <>
+                          {bc.truncated_fields?.length > 0 && (
+                            <p className="bc-help" style={{ color: 'var(--color-warning, #b3541e)', marginBottom: 8 }}>
+                              ⚠ {bc.truncated_fields.join(', ')} {bc.truncated_fields.length > 1 ? 'were' : 'was'} too
+                              long for Business Central's field limit and {bc.truncated_fields.length > 1 ? 'have' : 'has'} been
+                              shortened below. The full extracted value is still on this record — after pushing,
+                              open the vendor in BC and complete the address there if needed.
+                            </p>
+                          )}
                           <div className="bc-payload-actions">
                             <button className="btn btn-secondary" onClick={downloadPayload}>Download JSON</button>
                             <button className="btn btn-secondary" onClick={copyPayload}>Copy</button>
