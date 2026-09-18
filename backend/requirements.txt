@@ -31,6 +31,7 @@ paddleocr==3.7.0
 
 pypdfium2==5.12.1
 rapidfuzz==3.14.5
+requests==2.32.5
 python-docx==1.2.0
 pyyaml==6.0.2
 numpy==2.3.5
@@ -42,6 +43,14 @@ jinja2==3.1.6
 python-multipart==0.0.32
 python-dotenv==1.2.2
 openpyxl==3.1.5
+
+# Address-split classifier experiment (app/eval/eval_address_partition.py,
+# app/services/extraction_pipeline/extract/split_classifier.py) -- CPU-only,
+# feature-based, trained on the synthetic partition dataset. Not used by any
+# other part of the pipeline; safe to skip installing if this experiment is
+# not being run.
+scikit-learn==1.9.1
+pandas==3.0.5
 
 # Auth + database integration (feature/authentication).
 pydantic==2.13.4

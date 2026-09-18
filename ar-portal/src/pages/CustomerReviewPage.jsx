@@ -125,6 +125,12 @@ export default function CustomerReviewPage() {
   const sourceDocs = result.source_documents?.map(d => d.file_name) ||
                      (Array.isArray(result.documents) ? result.documents.map(d => typeof d === 'string' ? d : d.document) : [])
 
+  // Live GST-registry check (see onboarding_mapper.to_onboarding_schema /
+  // gstin_verification.py). Only present on the /onboarding/extract schema
+  // (customer flow); undefined -- and therefore not rendered -- for a result
+  // shaped by the standard /extract response.
+  const gstVerification = result.gst_verification
+
   // Fields the extractor actually produced a value for (excludes the manual
   // business fields like salesperson/region that never come from a document).
   const filledCount = FIELDS.filter(f => f.key !== 'type' && String(formData[f.key] ?? '').trim()).length
@@ -169,6 +175,13 @@ export default function CustomerReviewPage() {
                   <div className="field-header">
                     <label className="field-label" htmlFor={f.key}>{f.label}</label>
                   </div>
+
+                  {f.key === 'gst_registration_number' && gstVerification?.checked && (
+                    <div className={'field-note' + (gstVerification.active ? '' : ' field-note--warning')}>
+                      GST registry: {gstVerification.active ? 'active' : `NOT active (status: ${gstVerification.status || 'unknown'})`}
+                      {gstVerification.legal_name ? ` (${gstVerification.legal_name})` : ''}
+                    </div>
+                  )}
 
                   {f.type === 'select' ? (
                     <select

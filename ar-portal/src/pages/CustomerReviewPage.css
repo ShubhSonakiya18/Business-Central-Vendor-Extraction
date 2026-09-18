@@ -32,6 +32,18 @@
   text-transform: uppercase;
 }
 
+/* Per-field annotation (currently only the live GSTIN registry check) shown
+   between the label and its input -- mirrors VendorComparePage.css's
+   .field-note so the two review UIs read consistently. */
+.field-note {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--color-text-subtle);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.field-note--warning { color: var(--color-warning); font-weight: 600; }
+
 /* Confidence badges */
 .conf-badge {
   display: inline-flex;
