@@ -85,6 +85,16 @@ class Settings(BaseSettings):
     BC_VENDOR_POSTING_GROUP: str = ""
     BC_CUSTOMER_POSTING_GROUP: str = ""
 
+    # -- GSTIN live verification (gstinapi.in) --------------------------
+    # Confirms a GSTIN is actually registered/active in the GST registry --
+    # separate from validator.py's regex/checksum format check, which never
+    # leaves the machine. Off by default: the free tier is a hard 50-request
+    # cap, so this must be turned on deliberately, not fire on every
+    # extraction run/test the way Gemini's per-project quota already has
+    # (see CLAUDE.md). Shared by both the vendor and customer flows.
+    GSTIN_API_ENABLED: bool = False
+    GSTIN_API_KEY: str = ""
+
     # -- Runtime data locations ----------------------------------------
     # Env overrides keep their historical VENDOR_* names.
     UPLOAD_DIR: Path = Field(

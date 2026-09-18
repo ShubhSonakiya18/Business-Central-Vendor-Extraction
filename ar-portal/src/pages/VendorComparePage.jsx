@@ -48,7 +48,15 @@ function buildRows(fields, needsReview) {
     const pdfValue   = field.value ?? ''
     const excelValue = isSingle ? null : (field.excel_value ?? field.value ?? '')
 
-    return { label, pdfValue, excelValue, isMismatch, isSingle, confidence: field.confidence }
+    return {
+      label, pdfValue, excelValue, isMismatch, isSingle,
+      confidence: field.confidence,
+      // Extra provenance/annotations a FieldResult may carry -- currently
+      // used for the live GSTIN registry check (see
+      // extraction.py:_apply_gstin_verification), but generic to any future
+      // per-field note. Empty for every field that has none.
+      notes: field.notes ?? [],
+    }
   })
 }
 
@@ -143,7 +151,21 @@ export default function VendorComparePage() {
               <tbody>
                 {rows.map(row => (
                   <tr key={row.label} className={row.isMismatch ? 'row-mismatch' : ''}>
-                    <td>{row.label}</td>
+                    <td>
+                      {row.label}
+                      {row.notes.length > 0 && (
+                        <div className="field-notes">
+                          {row.notes.map((note, i) => (
+                            <div
+                              key={i}
+                              className={note.includes('NOT active') ? 'field-note field-note--warning' : 'field-note'}
+                            >
+                              {note}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td className={row.isMismatch ? 'val-mismatch' : ''}>{row.pdfValue}</td>
                     <td>
                       {row.isSingle

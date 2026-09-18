@@ -109,6 +109,36 @@ def check_requested_sheets(template: Optional[Path], sheet_names: list[str]) -> 
     return available
 
 
+def _apply_gstin_verification(result) -> None:
+    """Live GST-registry check (gstinapi.in) on the extracted `gst_number`
+    field, surfaced through the SAME FieldResult the vendor Compare page
+    already renders (VendorComparePage.jsx's buildRows() reads `.notes` /
+    `.validation_messages` off each field's to_dict() -- no new response
+    shape, no frontend change needed).
+
+    A no-op when GSTIN_API_ENABLED is off, no gst_number was extracted, or
+    the live call fails/is disabled -- never blocks or alters extraction
+    itself, only annotates the existing field."""
+    from app.services.gstin_verification import verify_gstin
+
+    field = result.fields.get("gst_number")
+    if field is None or not field.value:
+        return
+
+    verification = verify_gstin(field.value)
+    if not verification.checked:
+        return  # disabled / no key / call failed -- nothing to add
+
+    if verification.active:
+        note = f"GST registry: active" + (f" ({verification.legal_name})" if verification.legal_name else "")
+        field.notes.append(note)
+    else:
+        field.notes.append(f"GST registry: NOT active (status: {verification.status or 'unknown'})")
+        field.validation_messages.append("GSTIN is registered but not active per the live GST registry")
+        if field.validation_status == "valid":
+            field.validation_status = "warning"
+
+
 def extract(documents: list[Path], run_dir: Path, models: str):
     """OCR and extract. Returns (result, canonical, load_seconds, started_at)."""
     from app.services.extraction_pipeline.ingest.document_loader import load_documents
@@ -147,6 +177,7 @@ def extract(documents: list[Path], run_dir: Path, models: str):
     doc_set.save_json(run_dir / "document_set.json")
 
     result = extract_from_document_set(doc_set)
+    _apply_gstin_verification(result)
     canonical = result.canonical()
 
     result.save_json(run_dir / "extraction.json")
