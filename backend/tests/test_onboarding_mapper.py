@@ -60,9 +60,17 @@ class TestHappyPath:
             "email_id_to", "email_id_cc", "phone_number",
             "payment_terms", "salesperson", "region", "customer_agreement", "type",
             "bank_details", "source_documents", "fields_needing_review",
+            "gst_verification",
         }
         assert set(self.out["bank_details"]) == {
             "bank_name", "account_number", "ifsc_code", "branch",
+        }
+        # verify_gstin() no-ops to checked=False here since GSTIN_API_ENABLED
+        # defaults off in tests (see gstin_verification.py) -- but the KEY
+        # itself is always present in the schema regardless, so the shape
+        # never varies with whether live verification actually ran.
+        assert set(self.out["gst_verification"]) == {
+            "checked", "active", "status", "legal_name", "error",
         }
 
     def test_business_fields_present_but_empty(self):
