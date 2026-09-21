@@ -180,6 +180,7 @@ export default function CustomerReviewPage() {
                     <div className={'field-note' + (gstVerification.active ? '' : ' field-note--warning')}>
                       GST registry: {gstVerification.active ? 'active' : `NOT active (status: ${gstVerification.status || 'unknown'})`}
                       {gstVerification.legal_name ? ` (${gstVerification.legal_name})` : ''}
+                      {gstVerification.address ? ` — registered address: ${gstVerification.address}` : ''}
                     </div>
                   )}
 

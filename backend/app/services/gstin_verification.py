@@ -45,7 +45,11 @@ class GstinVerificationResult:
     checked: bool               # True if the API call actually ran and returned data
     active: bool = False        # True if the registry marks this GSTIN as active
     legal_name: str = ""        # registered legal name, for comparison against the extracted vendor/customer name
+    trade_name: str = ""        # registered trade name, if different from the legal name
     status: str = ""            # raw registry status string (e.g. "Active", "Cancelled")
+    address: str = ""           # registered principal place of business, single-line
+    city: str = ""              # registered city
+    pincode: str = ""           # registered PIN code
     error: str = ""             # set when checked=False -- why no result is available
 
 
@@ -89,17 +93,27 @@ def verify_gstin(gstin: str) -> GstinVerificationResult:
         return _disabled_result("response was not valid JSON")
 
     # gstinapi.in's profile response nests the registry fields under
-    # "profile" -- kept defensive (dict.get chains, no assumed shape) since
-    # the exact field names have not been confirmed against a live response
-    # for every GSTIN status yet (see TODO-style note in bc_mapper.py for a
-    # similar "unconfirmed against live server" caveat in this codebase).
+    # "profile" or "data" depending on endpoint/version -- kept defensive
+    # (dict.get chains) since only the "data" shape has been confirmed
+    # against a live response so far (a Regular/Proprietorship, Active
+    # GSTIN). address_details' own sub-fields (city, state) came back null
+    # on that response even though the flat top-level address/city/pincode
+    # were populated, so those flat fields are preferred here.
     profile = data.get("profile") or data.get("data") or {}
     status = str(profile.get("gstin_status") or profile.get("status") or "").strip()
     legal_name = str(profile.get("legal_name") or profile.get("lgnm") or "").strip()
+    trade_name = str(profile.get("trade_name") or profile.get("tradeNam") or "").strip()
+    address = str(profile.get("address") or profile.get("pradr") or "").strip()
+    city = str(profile.get("city") or "").strip()
+    pincode = str(profile.get("pincode") or "").strip()
 
     return GstinVerificationResult(
         checked=True,
         active=status.lower() == "active",
         legal_name=legal_name,
+        trade_name=trade_name,
         status=status,
+        address=address,
+        city=city,
+        pincode=pincode,
     )

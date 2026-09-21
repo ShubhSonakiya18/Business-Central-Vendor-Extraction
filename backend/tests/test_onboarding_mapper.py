@@ -70,7 +70,8 @@ class TestHappyPath:
         # itself is always present in the schema regardless, so the shape
         # never varies with whether live verification actually ran.
         assert set(self.out["gst_verification"]) == {
-            "checked", "active", "status", "legal_name", "error",
+            "checked", "active", "status", "legal_name", "trade_name",
+            "address", "city", "pincode", "error",
         }
 
     def test_business_fields_present_but_empty(self):
