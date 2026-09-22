@@ -428,6 +428,10 @@ def to_onboarding_schema(result: ExtractionResult) -> dict[str, Any]:
             "active": gst_verification.active if gst_verification else False,
             "status": gst_verification.status if gst_verification else "",
             "legal_name": gst_verification.legal_name if gst_verification else "",
+            "trade_name": gst_verification.trade_name if gst_verification else "",
+            "address": gst_verification.address if gst_verification else "",
+            "city": gst_verification.city if gst_verification else "",
+            "pincode": gst_verification.pincode if gst_verification else "",
             "error": gst_verification.error if gst_verification else "",
         },
     }
