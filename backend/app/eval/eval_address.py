@@ -44,15 +44,21 @@ def _split(address: str, multiline: bool = False) -> dict[str, str]:
     expected confidence, it is shown so a `correct`-but-`low` row is visible.
 
     `multiline=True` (opt-in, matching `resolve_address_blob`'s own default)
-    additionally splits the premises/locality remainder into address_3/
-    address_4 via address_segmenter.py, instead of leaving them empty. Scored
-    against the SAME address_cases.yaml -- these 11 hand-written cases were
-    written under the legacy "everything in address_1" convention, so most are
-    expected to still show address_3/address_4 as "" (correctly_absent) even
-    in multiline mode; this run exists to catch any UNEXPECTED hallucination
-    of a third/fourth line on cases that should not produce one, not to
-    exercise the segmenter's own dedicated corpus (address_line_cases.yaml,
-    scored separately by test_address_segmenter.py).
+    routes the premises/locality remainder through address_segmenter.py's
+    Address 1/Address 2 role-based split instead of joining everything into
+    address_1 as one string (the "interpretation B" convention this file's
+    own `expect` blocks are written under). address_3/address_4 are ALWAYS ""
+    under the current Address 1/Address 2 redesign -- correctly_absent on
+    every case, in every mode -- so a `--multiline` FAIL on address_1/
+    address_2 here is EXPECTED wherever a case's locality content should now
+    move to Address 2 under the new business rule (e.g. "14 EXAMPLE ROAD,
+    KORAMANGALA" -> address_1="14 EXAMPLE ROAD", address_2="KORAMANGALA"
+    rather than both joined into address_1). This file's cases were never
+    rewritten to the new convention because that is `address_line_cases.
+    yaml`'s job (scored by test_address_segmenter.py, 74/74 passing) --
+    `--multiline` here remains a smoke check that address_3/address_4 never
+    get populated and that city/state/pin_code stay correct, not a claim
+    that address_1/address_2 match this file's single-line convention.
     """
     from app.services.extraction_pipeline.extract.address_resolver import (
         resolve_address_blob,

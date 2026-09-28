@@ -41,8 +41,10 @@ import re
 from dataclasses import dataclass, field
 
 from .address_lookups import (
+    canonical_city,
     canonical_state,
     data_files_present,
+    is_district_name,
     is_known_city,
     pin_state_district,
 )
@@ -76,10 +78,20 @@ class ResolvedAddress:
     # called with multiline=True (vendor path) -- see that function's
     # docstring. Left "" (their dataclass default) on the legacy path, so
     # every existing caller and as_dict()'s 5-key shape stay byte-identical.
+    # Under the Business Central Address 1/Address 2 redesign they are NEVER
+    # populated even with multiline=True -- kept only for interface-shape
+    # back-compat with any caller still reading them.
     address_3: str = ""
     address_4: str = ""
     city: str = ""
     state: str = ""
+    # Extracted-value-first: set to the country token actually found in the
+    # source text (canonicalized, e.g. "bharat" -> "India") when one exists;
+    # "India" is used only as a default when no country token is present at
+    # all -- see resolve_address_blob()'s _drop_trailing_country() call.
+    # Never appears inside address_1/address_2 text (country tokens are
+    # peeled off before the leftover reaches address_segmenter).
+    country: str = "India"
     pin_code: str = ""
     confidence: str = _CONF_LOW
     # what each field was resolved from, for review flags / debugging
@@ -89,7 +101,7 @@ class ResolvedAddress:
         """The ORIGINAL 5-key shape, unchanged since before address_3/4
         existed. Every current caller (semantic_engine's legacy path,
         eval_address.py's default mode, split_trailing_location) reads
-        exactly these keys -- do not add address_3/4 here; use
+        exactly these keys -- do not add address_3/4/country here; use
         as_dict_full() instead, which is additive."""
         return {
             "address_1": self.address_1,
@@ -100,10 +112,16 @@ class ResolvedAddress:
         }
 
     def as_dict_full(self) -> dict[str, str]:
-        """as_dict() plus address_3/address_4 -- for the multiline (vendor)
-        path only. A separate method rather than conditionally including the
-        extra keys in as_dict() itself, so as_dict()'s shape never varies."""
-        return {**self.as_dict(), "address_3": self.address_3, "address_4": self.address_4}
+        """as_dict() plus address_3/address_4/country -- for the multiline
+        (vendor) path only. A separate method rather than conditionally
+        including the extra keys in as_dict() itself, so as_dict()'s shape
+        never varies."""
+        return {
+            **self.as_dict(),
+            "address_3": self.address_3,
+            "address_4": self.address_4,
+            "country": self.country,
+        }
 
 
 def _segments(address: str) -> list[str]:
@@ -124,22 +142,41 @@ def _titlecase_city(token: str) -> str:
 
 def _strip_pin(segments: list[str]) -> tuple[list[str], str]:
     """Remove the PIN from wherever it sits (usually the tail, sometimes glued
-    to the state token: 'Punjab 160055'). Returns (segments_without_pin, pin)."""
+    to the state token: 'Punjab 160055'). Returns (segments_without_pin, pin).
+
+    Before and after the PIN are kept as TWO SEPARATE segments when both are
+    non-empty, rather than fused into one string. A fused remainder breaks
+    downstream token-exact matching (_match_state, is_known_city) -- e.g.
+    'Punjab 160062 (Behind CP Mall)' would otherwise become one segment
+    'Punjab   (Behind CP Mall)', which canonical_state() no longer recognises
+    as the state name it starts with, so the state token is never peeled off
+    and leaks into address_2 untouched."""
     for i, seg in enumerate(segments):
         m = _PIN_RE.search(seg)
         if not m:
             continue
         pin = m.group(1)
-        remainder = (seg[: m.start()] + " " + seg[m.end():]).strip(" ,")
-        new = segments[:i] + ([remainder] if remainder else []) + segments[i + 1:]
+        before = seg[: m.start()].strip(" ,")
+        after = seg[m.end():].strip(" ,")
+        remainder = [s for s in (before, after) if s]
+        new = segments[:i] + remainder + segments[i + 1:]
         return new, pin
     return segments, ""
 
 
-def _drop_trailing_country(segments: list[str]) -> list[str]:
+_COUNTRY_CANONICAL = {"india": "India", "bharat": "India", "in": "India", "ind": "India"}
+
+
+def _drop_trailing_country(segments: list[str]) -> tuple[list[str], str]:
+    """Drop trailing country token(s) and return (segments_without_country,
+    extracted_country). `extracted_country` is "" when no country token was
+    found in the source at all -- callers default to "India" only in that
+    case, never overriding a genuinely present token."""
+    country = ""
     while segments and segments[-1].casefold() in _COUNTRY_TOKENS:
+        country = _COUNTRY_CANONICAL.get(segments[-1].casefold(), country)
         segments = segments[:-1]
-    return segments
+    return segments, country
 
 
 def _match_state(segments: list[str]) -> tuple[list[str], str, int]:
@@ -260,17 +297,37 @@ def _pick_city(
     def _norm(s: str) -> str:
         return s.casefold().replace(" ", "").replace(".", "")
 
-    # Known-city tokens, end-first. When more than one exists and one of them
-    # is just the PIN's district, prefer the *other* -- the string naming both
-    # MOHALI and its district "S.A.S Nagar" means the city is Mohali.
+    # Known-city tokens, end-first. Two independent, real-world facts decide
+    # between multiple candidates:
+    #   (a) is this token EVER a district value anywhere in the PIN directory
+    #       (is_district_name), or is it a "pure" city/town name that never
+    #       has district-level identity (e.g. Mohali never appears as a
+    #       district for ANY pin -- it is purely a colloquial place name)?
+    #   (b) does this token match THIS PIN's own district exactly?
+    # A pure, non-district city name is preferred over any district-shaped
+    # name, on the theory that a colloquial city a human actually wrote is
+    # more specific/informative than a district label sitting beside it
+    # ("MOHALI, S.A.S Nagar" -> Mohali, since S.A.S Nagar is only ever a
+    # district, never an independent city).
+    # Among two OR MORE district-shaped names (no pure city present), the one
+    # that matches THIS PIN's own district wins -- the PIN independently
+    # verifies that specific one, which outranks an unrelated, broader
+    # district also mentioned in the same address ("...Niwari, Tikamgarh...",
+    # PIN 472442 -> Niwari specifically, not the larger Tikamgarh district
+    # Niwari sits inside of -- Tikamgarh is itself a real, separate district
+    # with its own PINs, so it is never "obviously wrong," only wrong for
+    # THIS particular PIN).
     known = [i for i in range(n - 1, -1, -1) if is_known_city(segments[i])]
     chosen = -1
     if known:
-        non_district = [
-            i for i in known
-            if not dist_norm or _norm(segments[i]) != _norm(pin_district)
-        ]
-        chosen = non_district[0] if non_district else known[0]
+        pure_city = [i for i in known if not is_district_name(segments[i])]
+        if pure_city:
+            chosen = pure_city[0]
+        else:
+            district_matches = [
+                i for i in known if dist_norm and _norm(segments[i]) == _norm(pin_district)
+            ]
+            chosen = district_matches[0] if district_matches else known[0]
     if chosen == -1 and dist_norm:
         for i in range(n - 1, -1, -1):
             if _norm(segments[i]) == _norm(pin_district):
@@ -319,7 +376,13 @@ def _pick_city(
     if chosen == -1:
         return segments, "", False
 
-    city_token = segments[chosen]
+    # Resolve to the CANONICAL city name, not the raw segment text -- a
+    # segment matched via an alias (e.g. "Sahibzada Ajit Singh Nagar (Mohali)")
+    # must produce the same city value the PIN directory itself would return
+    # ("S.A.S Nagar"), or the alias's own text would leak into the output as
+    # if it were a distinct city and the redundant-label check below would
+    # never recognise it as a duplicate of the PIN's district.
+    city_token = canonical_city(segments[chosen]) or segments[chosen]
     rest = segments[:chosen] + segments[chosen + 1:]
 
     # drop redundant trailing labels that just repeat the city or name the
@@ -328,6 +391,7 @@ def _pick_city(
     city_norm = _norm(city_token)
     while rest and (
         _norm(rest[-1]) == city_norm
+        or _norm(canonical_city(rest[-1]) or "") == city_norm
         or (dist_norm and _norm(rest[-1]) == _norm(pin_district))
     ):
         rest = rest[:-1]
@@ -348,12 +412,14 @@ def resolve_address_blob(address: str, *, multiline: bool = False) -> ResolvedAd
     `split_trailing_location()` below always calls with the default.
     """
     out = ResolvedAddress()
-    segments = _drop_trailing_country(_segments(address))
+    segments, country = _drop_trailing_country(_segments(address))
     if not segments:
+        out.country = country or "India"
         return out
 
     segments, pin = _strip_pin(segments)
-    segments = _drop_trailing_country(segments)
+    segments, country2 = _drop_trailing_country(segments)
+    out.country = country or country2 or "India"
     out.pin_code = pin
 
     pin_state, pin_district = "", ""
@@ -407,7 +473,40 @@ def resolve_address_blob(address: str, *, multiline: bool = False) -> ResolvedAd
         out.address_1 = ", ".join(segments).strip(" ,")
         out.confidence = resolver_confidence
 
+    out.address_1, out.address_2 = _fallback_populate_address_1(out.address_1, out.address_2)
+
     return out
+
+
+def _fallback_populate_address_1(address_1: str, address_2: str) -> tuple[str, str]:
+    """Presentation/business fallback, NOT a semantic re-segmentation step.
+
+    The primary segmentation (segment_leftover(), above) already decided
+    Address 1 vs Address 2 on semantic grounds -- that decision is never
+    revisited here. This fallback only fires in the narrow case that
+    decision left Address 1 completely empty while Address 2 has content:
+    an empty Address 1 looks incomplete in vendor output, while an empty
+    Address 2 is entirely acceptable. In that case, and ONLY that case, it
+    moves a contiguous PREFIX of Address 2's existing comma-delimited
+    fragments into Address 1 -- 1 fragment if Address 2 has 1 or 2 fragments
+    total, 2 fragments if it has 3 or more. Source order is preserved, no
+    fragment is dropped/duplicated/reclassified, and City/State/Country/PIN
+    are untouched (this function never sees them). If Address 1 already has
+    any content, this is a no-op.
+    """
+    if address_1.strip():
+        return address_1, address_2
+    if not address_2.strip():
+        return address_1, address_2
+
+    fragments = [f.strip() for f in address_2.split(",") if f.strip()]
+    if not fragments:
+        return address_1, address_2
+
+    n_move = 1 if len(fragments) <= 2 else 2
+    moved, remaining = fragments[:n_move], fragments[n_move:]
+
+    return ", ".join(moved), ", ".join(remaining)
 
 
 def _score(

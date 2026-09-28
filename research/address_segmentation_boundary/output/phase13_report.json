@@ -1,0 +1,40 @@
+{
+  "n_rows": 10000,
+  "nulls": {
+    "Address ID": 0,
+    "Name": 0,
+    "Building": 0,
+    "Street": 0,
+    "City": 0,
+    "State": 0,
+    "Postal Code": 0,
+    "Phone": 0,
+    "Full Address": 0
+  },
+  "duplicate_full_address": 0,
+  "duplicate_address_id": 0,
+  "building_contains_comma_pct": 0.0,
+  "reconstruction_ok_pct": 1.0,
+  "production_ms_per_address": 1.0912292718887329,
+  "production_city_exact_match_pct": 0.9998,
+  "production_state_exact_match_pct": 0.9992,
+  "production_pin_exact_match_pct": 1.0,
+  "production_confidence_distribution": {
+    "high": 9986,
+    "low": 9,
+    "medium": 5
+  },
+  "production_address1_vs_derived_building_match_pct": 0.2336,
+  "rule_a_ends_with_pin_pct": 1.0,
+  "metric_check_n": 2000,
+  "metric_check_means": {
+    "clean_fuzzy_partial": 1.0,
+    "shift_fuzzy_partial": 1.0,
+    "clean_token_set": 1.0,
+    "shift_token_set": 1.0,
+    "clean_tsr": 1.0,
+    "shift_tsr": 0.8217714285714287
+  },
+  "fuzzy_partial_misleading_rate_on_realistic_shift": 1.0,
+  "token_sequence_ratio_false_positive_rate_on_realistic_shift": 0.0
+}

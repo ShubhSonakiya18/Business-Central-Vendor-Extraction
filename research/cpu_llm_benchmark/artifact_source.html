@@ -1,0 +1,517 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Bonsai CPU Feasibility Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --paper:#F6F7F5;
+  --card:#FFFFFF;
+  --ink:#16191D;
+  --body:#333A42;
+  --muted:#5C6570;
+  --faint:#8B939C;
+  --rule:#E0E3DE;
+  --rule-hard:#C7CCC5;
+  --accent:#1F6F5C;
+  --accent-soft:#E4EFEA;
+  --warn:#A8521C;
+  --warn-soft:#F9EDE3;
+  --stop:#8C2F2F;
+  --stop-soft:#F7E8E8;
+  --ok:#2F6B4F;
+  --ok-soft:#E7F0EA;
+  --display:'Fraunces',Georgia,serif;
+  --sans:'Public Sans',system-ui,-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#15171A;
+    --card:#1D2024;
+    --ink:#F1F2EF;
+    --body:#CFD4D8;
+    --muted:#9AA2AA;
+    --faint:#6E767E;
+    --rule:#2B2F34;
+    --rule-hard:#3C4249;
+    --accent:#6FC2A6;
+    --accent-soft:#182B26;
+    --warn:#DE9560;
+    --warn-soft:#2C2017;
+    --stop:#D98080;
+    --stop-soft:#2C1B1B;
+    --ok:#7FBF9B;
+    --ok-soft:#16261E;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15171A;
+  --card:#1D2024;
+  --ink:#F1F2EF;
+  --body:#CFD4D8;
+  --muted:#9AA2AA;
+  --faint:#6E767E;
+  --rule:#2B2F34;
+  --rule-hard:#3C4249;
+  --accent:#6FC2A6;
+  --accent-soft:#182B26;
+  --warn:#DE9560;
+  --warn-soft:#2C2017;
+  --stop:#D98080;
+  --stop-soft:#2C1B1B;
+  --ok:#7FBF9B;
+  --ok-soft:#16261E;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper);color:var(--body);
+  font-family:var(--sans);font-size:16px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  padding-inline:20px;padding-block:0 96px;
+}
+.wrap{max-width:1120px;margin:0 auto}
+.col{max-width:68ch}
+
+/* ---------- masthead ---------- */
+header.mast{padding-block:52px 30px;border-bottom:2px solid var(--ink);margin-bottom:34px}
+.eyebrow{
+  font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent);margin:0 0 14px;
+}
+h1{
+  font-family:var(--display);font-weight:600;
+  font-size:clamp(2.1rem,5vw,3.15rem);line-height:1.08;letter-spacing:-.015em;
+  color:var(--ink);margin:0 0 16px;text-wrap:balance;max-width:18ch;
+}
+.standfirst{font-family:var(--display);font-size:1.15rem;line-height:1.55;color:var(--muted);max-width:60ch;margin:0}
+.mast-meta{
+  display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:22px;
+  font-family:var(--mono);font-size:.72rem;color:var(--faint);
+}
+.mast-meta b{color:var(--body);font-weight:500}
+
+/* ---------- sections ---------- */
+section{margin-bottom:56px}
+h2{
+  font-family:var(--display);font-size:1.6rem;font-weight:600;letter-spacing:-.01em;
+  color:var(--ink);margin:0 0 8px;text-wrap:balance;
+}
+h3{font-family:var(--sans);font-size:.98rem;font-weight:600;color:var(--ink);margin:28px 0 8px}
+.dek{color:var(--muted);margin:0 0 22px;max-width:62ch}
+p{margin:0 0 14px}
+.col p:last-child{margin-bottom:0}
+strong{color:var(--ink);font-weight:600}
+code{
+  font-family:var(--mono);font-size:.855em;background:var(--card);
+  border:1px solid var(--rule);border-radius:3px;padding:1px 5px;color:var(--ink);
+}
+
+/* ---------- plain-language callout ---------- */
+.plain{
+  background:var(--accent-soft);border-left:3px solid var(--accent);
+  padding:16px 20px;margin:20px 0;max-width:68ch;
+}
+.plain p{margin:0;color:var(--body)}
+.plain .lbl{
+  display:block;font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:6px;
+}
+.caveat{
+  background:var(--warn-soft);border-left:3px solid var(--warn);
+  padding:16px 20px;margin:20px 0;max-width:68ch;
+}
+.caveat p{margin:0;color:var(--body)}
+.caveat .lbl{
+  display:block;font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--warn);margin-bottom:6px;
+}
+
+/* ---------- pipeline diagram ---------- */
+.pipe-wrap{overflow-x:auto;margin:22px 0 10px;padding-bottom:6px}
+.pipe{display:flex;align-items:stretch;gap:0;min-width:660px}
+.stage{
+  flex:1;background:var(--card);border:1px solid var(--rule);
+  padding:13px 14px;position:relative;
+}
+.stage + .stage{border-left:none}
+.stage-n{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:var(--faint);margin-bottom:5px}
+.stage-t{font-weight:600;color:var(--ink);font-size:.86rem;line-height:1.3}
+.stage-d{font-size:.76rem;color:var(--muted);margin-top:4px;line-height:1.45}
+.stage.target{border-color:var(--accent);background:var(--accent-soft);border-left:1px solid var(--accent)}
+.stage.target .stage-n{color:var(--accent)}
+
+.detached{
+  margin-top:18px;border:2px dashed var(--rule-hard);background:transparent;
+  padding:16px 18px;max-width:68ch;
+}
+.detached-t{font-weight:600;color:var(--ink);margin-bottom:5px;font-size:.92rem}
+.detached-d{font-size:.85rem;color:var(--muted);margin:0}
+.detached.live{border-style:solid;border-color:var(--accent)}
+.detached.live .detached-t{color:var(--accent)}
+
+/* ---------- status chips ---------- */
+.chip{
+  display:inline-block;font-family:var(--mono);font-size:.63rem;font-weight:500;
+  letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:2px;white-space:nowrap;
+}
+.chip-done{background:var(--ok-soft);color:var(--ok)}
+.chip-run{background:var(--warn-soft);color:var(--warn)}
+.chip-todo{background:var(--card);color:var(--faint);border:1px solid var(--rule)}
+
+/* ---------- progress list ---------- */
+.steps{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);margin:20px 0}
+.step{background:var(--card);padding:15px 18px;display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:start}
+.step-main{min-width:0}
+.step-t{font-weight:600;color:var(--ink);font-size:.93rem;margin-bottom:3px}
+.step-d{font-size:.85rem;color:var(--muted);line-height:1.5}
+.step-d code{font-size:.8em}
+
+/* ---------- tables ---------- */
+.tbl-wrap{overflow-x:auto;margin:18px 0;border:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;background:var(--card);font-size:.855rem;min-width:520px}
+th{
+  text-align:left;font-family:var(--mono);font-size:.64rem;font-weight:500;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);padding:10px 14px;
+  border-bottom:1px solid var(--rule-hard);background:var(--paper);white-space:nowrap;
+}
+td{padding:10px 14px;border-bottom:1px solid var(--rule);vertical-align:top;color:var(--body)}
+tr:last-child td{border-bottom:none}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.bad{color:var(--stop);font-weight:500}
+td.good{color:var(--ok)}
+
+/* ---------- verdict ---------- */
+.verdict{border:1px solid var(--stop);background:var(--stop-soft);padding:20px 22px;margin:24px 0;max-width:68ch}
+.verdict .lbl{
+  display:block;font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--stop);margin-bottom:8px;
+}
+.verdict .big{font-family:var(--display);font-size:1.3rem;font-weight:600;color:var(--ink);line-height:1.35;margin:0 0 10px;text-wrap:balance}
+.verdict p{margin:0;font-size:.92rem;color:var(--body)}
+
+/* ---------- number strip ---------- */
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:22px 0}
+.num-cell{background:var(--card);padding:15px 16px}
+.num-v{font-family:var(--display);font-size:1.75rem;font-weight:600;color:var(--ink);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.num-v small{font-size:.9rem;color:var(--faint);font-weight:400}
+.num-l{font-family:var(--mono);font-size:.63rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-top:7px}
+.num-s{font-size:.76rem;color:var(--faint);margin-top:3px;line-height:1.4}
+
+ul.tight{margin:0 0 14px;padding-left:20px}
+ul.tight li{margin-bottom:7px}
+
+footer{border-top:1px solid var(--rule);margin-top:60px;padding-top:20px;font-family:var(--mono);font-size:.71rem;color:var(--faint);max-width:68ch}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Feasibility check &middot; not an integration</p>
+  <h1>Can this model run on a plain CPU?</h1>
+  <p class="standfirst">Shashwat shared a model link and asked someone to benchmark its CPU latency. This page explains what that actually means, how it relates to the Vendor Extractor pipeline, and what the finished measurements show.</p>
+  <div class="mast-meta">
+    <span>Model <b>Ternary-Bonsai-2-27B</b></span>
+    <span>Machine <b>i7-12700H &middot; 14C/20T &middot; 15.6&nbsp;GB</b></span>
+    <span>Status <b>Benchmark complete</b></span>
+  </div>
+</header>
+
+<!-- ============ WHAT WAS ASKED ============ -->
+<section>
+  <h2>1. What you were actually asked to do</h2>
+  <p class="dek">The Teams message is one sentence, but it contains a specific technical request.</p>
+
+  <div class="col">
+    <p>&ldquo;Benchmark this for the latency around CPU&rdquo; means: <strong>download this AI model, run it on an ordinary computer that has no graphics card, and measure how slow it is.</strong></p>
+    <p>There are two different speeds that matter, and they get measured separately:</p>
+    <ul class="tight">
+      <li><strong>How long until it starts replying</strong> &mdash; you send a question, and nothing appears on screen for a while. That wait is called <em>time to first token</em>, or TTFT.</li>
+      <li><strong>How fast it writes once it starts</strong> &mdash; measured in <em>tokens per second</em>. A token is roughly three-quarters of a word. So 10 tokens/sec feels like a person typing quickly; 1 token/sec feels broken.</li>
+    </ul>
+    <p>The reason someone has to actually test it rather than read the spec sheet: <strong>speed depends entirely on the machine.</strong> The same model can be fast on one computer and unusable on another. So the numbers are only meaningful next to a description of the hardware they came from.</p>
+  </div>
+
+  <div class="plain">
+    <span class="lbl">Why the team cares</span>
+    <p>Models normally need an expensive graphics card (GPU) to run at a usable speed. This one is specially compressed to be small enough to run without one. If that actually works, it means AI features could ship on ordinary servers and laptops &mdash; no GPU budget. That&rsquo;s the question being tested.</p>
+  </div>
+</section>
+
+<!-- ============ WHAT IS THIS MODEL ============ -->
+<section>
+  <h2>2. What this model is</h2>
+  <p class="dek">The unusual thing about it is the compression, which is what makes a CPU-only test worth running at all.</p>
+
+  <div class="col">
+    <p>A 27-billion-parameter model would normally need about <strong>54&nbsp;GB</strong> of memory just to hold it. This version squeezes each parameter down to roughly <strong>1.75 bits</strong> instead of 16, which shrinks the file to <strong>5.53&nbsp;GB</strong> &mdash; small enough to fit in a normal laptop&rsquo;s RAM.</p>
+    <p>That compression is the entire pitch. The open question it creates is whether the model is still <em>fast</em> enough once it fits, which is a separate problem from whether it <em>fits</em>.</p>
+    <p>One practical catch found during setup: this model uses a custom compression format that <strong>standard llama.cpp cannot run</strong>. It needs the model author&rsquo;s own modified build. Their documentation is explicit that the normal version will either refuse the file or silently produce garbage.</p>
+  </div>
+
+  <div class="nums">
+    <div class="num-cell">
+      <div class="num-v">26.9<small>B</small></div>
+      <div class="num-l">Parameters</div>
+      <div class="num-s">Full-size would be ~54 GB</div>
+    </div>
+    <div class="num-cell">
+      <div class="num-v">5.53<small> GiB</small></div>
+      <div class="num-l">Compressed file</div>
+      <div class="num-s">1.75 bits per parameter</div>
+    </div>
+    <div class="num-cell">
+      <div class="num-v">262<small>K</small></div>
+      <div class="num-l">Max context</div>
+      <div class="num-s">Tested at 4K &mdash; enough for our prompts</div>
+    </div>
+    <div class="num-cell">
+      <div class="num-v">0<small> GPU</small></div>
+      <div class="num-l">Layers offloaded</div>
+      <div class="num-s">Verified CPU-only, see below</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PIPELINE RELATIONSHIP ============ -->
+<section>
+  <h2>3. How this relates to the Vendor Extractor</h2>
+  <p class="dek">The benchmark itself is still completely separate. But since it finished, a small opt-in hook was added &mdash; it changes nothing unless someone deliberately turns it on.</p>
+
+  <div class="col">
+    <p>Your pipeline is still <strong>entirely rule-based by default</strong>. It reads a document, then uses keyword dictionaries, regular expressions and spatial position rules to figure out which piece of text is the vendor name, which is the GSTIN, and where an address should be split.</p>
+  </div>
+
+  <div class="pipe-wrap">
+    <div class="pipe">
+      <div class="stage">
+        <div class="stage-n">STAGE 1</div>
+        <div class="stage-t">Read the document</div>
+        <div class="stage-d">OCR turns the scanned PDF or image into text.</div>
+      </div>
+      <div class="stage target">
+        <div class="stage-n">STAGE 2</div>
+        <div class="stage-t">Find the fields</div>
+        <div class="stage-d">Keyword and position rules locate vendor name, GSTIN, PAN, address.</div>
+      </div>
+      <div class="stage target">
+        <div class="stage-n">STAGE 3</div>
+        <div class="stage-t">Split the address</div>
+        <div class="stage-d">Tier + gap-scoring rules decide where address_1 ends and address_2 begins.</div>
+      </div>
+      <div class="stage">
+        <div class="stage-n">STAGE 4</div>
+        <div class="stage-t">Validate</div>
+        <div class="stage-d">Checksums, format checks, cross-document consistency.</div>
+      </div>
+      <div class="stage">
+        <div class="stage-n">STAGE 5</div>
+        <div class="stage-t">Push to Business Central</div>
+        <div class="stage-d">Mapped into VendorCard fields and sent.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="detached live">
+    <div class="detached-t">What actually changed: an opt-in hook, off by default</div>
+    <p class="detached-d">A new module lets the model propose values for stages 2&ndash;3 alongside the existing rules, but only when a <code>--llm</code> flag (or <code>use_llm=True</code>) is passed explicitly. With it off &mdash; the normal case &mdash; the pipeline runs exactly as before, byte-for-byte. When it&rsquo;s on, the model&rsquo;s guesses are scored deliberately <em>low</em>, so a real rule-based match always wins; the model only fills in a field when nothing else found it. Given the numbers below, turning it on means accepting minutes of extra wait per document.</p>
+  </div>
+
+  <h3>Why not more than that?</h3>
+  <div class="col">
+    <p>The measured speed (next section) is the reason this stays optional. A field that the rule-based matcher already finds instantly would otherwise sit blocked behind a multi-minute model call for no benefit. The hook exists so the option is there &mdash; not because the speed problem has been solved.</p>
+  </div>
+</section>
+
+<!-- ============ PROGRESS ============ -->
+<section>
+  <h2>4. Where the work stands</h2>
+  <p class="dek">Everything below was actually run on this machine. Nothing is estimated.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Inspect the machine</div>
+        <div class="step-d">Windows 11, i7-12700H, 14 physical / 20 logical cores, 15.63 GB RAM, no NVIDIA GPU. Recorded because the numbers mean nothing without it.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Work out which files to download</div>
+        <div class="step-d">Two CPU-relevant compressions exist. Picked <code>PTQ1_0</code> because it is the only one with a hand-optimised CPU routine; <code>PQ2_0</code> falls back to slow generic code.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Download runtime and model</div>
+        <div class="step-d">The author&rsquo;s modified llama.cpp build plus the model file (5,946,648,928 bytes &mdash; exact match to the published size). Took ~33 minutes.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Prove it is really CPU-only</div>
+        <div class="step-d">Asking the binary to list accelerators returns <code>(none)</code> &mdash; this build has no GPU support compiled in at all. Plus <code>-ngl 0</code> passed on every run. Not assumed, checked.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Build a reproducible benchmark script</div>
+        <div class="step-d">Records hardware, load time, memory, and per-prompt timings to a JSON file. Written to run on any CPU machine, not hardcoded to this laptop.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Five realistic prompts &times; repeated runs</div>
+        <div class="step-d">Short, medium, long, a structured vendor-extraction prompt, and a reasoning prompt &mdash; not toy &ldquo;hello world&rdquo; tests. All five complete, 1 warm-up + 2 measured runs each.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Thread scaling sweep</div>
+        <div class="step-d">Same workload at 1, 2, 4, 7, 13 and 20 threads to find where more cores stop helping. Full sweep complete.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Written report for the team</div>
+        <div class="step-d">Hardware, method, results, limitations, and a short summary Shashwat can read without context &mdash; <code>CPU_BENCHMARK_REPORT.md</code>.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Opt-in pipeline hook</div>
+        <div class="step-d">A new <code>llm_matcher.py</code> module, wired behind a flag that defaults to off. Existing extraction behaviour is unchanged unless someone turns it on deliberately.</div>
+      </div>
+      <span class="chip chip-done">Done</span>
+    </div>
+    <div class="step">
+      <div class="step-main">
+        <div class="step-t">Benchmark the second compression (<code>PQ2_0</code>)</div>
+        <div class="step-d">Skipped by design. Another 7.21 GB download, and it has no optimised CPU routine &mdash; it can only be slower than what was already measured, for a worse RAM cost.</div>
+      </div>
+      <span class="chip chip-todo">Not run &mdash; not needed</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESULTS ============ -->
+<section>
+  <h2>5. What the numbers say</h2>
+  <p class="dek">Measured on this machine, CPU-only, using the <code>PTQ1_0</code> file &mdash; the faster of the two options. Across all 10 measured runs (5 prompts &times; 2 repeats), writing speed ranged 0.87&ndash;1.37 tok/s.</p>
+
+  <div class="nums">
+    <div class="num-cell">
+      <div class="num-v">~1.17<small> tok/s</small></div>
+      <div class="num-l">Writing speed</div>
+      <div class="num-s">mean across all runs &middot; about one word per second</div>
+    </div>
+    <div class="num-cell">
+      <div class="num-v">1.45<small>&ndash;1.64</small></div>
+      <div class="num-l">Reading speed (tok/s)</div>
+      <div class="num-s">cold, varies by prompt &middot; see caveat below</div>
+    </div>
+    <div class="num-cell">
+      <div class="num-v">28.4<small> s</small></div>
+      <div class="num-l">Model load</div>
+      <div class="num-s">One-off, at startup</div>
+    </div>
+    <div class="num-cell">
+      <div class="num-v">1.23<small> GB</small></div>
+      <div class="num-l">RAM left after load</div>
+      <div class="num-s">Down from 4.99 GB &mdash; flagged as memory pressure</div>
+    </div>
+  </div>
+
+  <h3>The finding that matters most</h3>
+  <div class="col">
+    <p>The first time the model sees a prompt, it is <strong>dramatically slower</strong> than when it sees the same prompt again. That gap turned out to be bigger than &ldquo;caching helps&rdquo; &mdash; it&rsquo;s the model&rsquo;s runtime reusing computation from an earlier request on the same text, confirmed directly in the raw logs. A real user always sends a new question, so the <em>first-time (cold)</em> number is the honest one for what production use would feel like.</p>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Prompt</th><th>Wait before it replies &mdash; first time (cold)</th><th>Wait on a repeat &mdash; cached</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Short question</td><td class="num">4.8 s</td><td class="num">2.6 s</td></tr>
+        <tr><td>Medium question</td><td class="num bad">32.7 s</td><td class="num">2.9 s</td></tr>
+        <tr><td>Long document (~1038 tokens in)</td><td class="num bad">682.4 s &nbsp;(11.4 min)</td><td class="num">2.8 s</td></tr>
+        <tr><td>Vendor extraction prompt</td><td class="num bad">83.1 s</td><td class="num">3.1 s</td></tr>
+        <tr><td>Reasoning / arithmetic prompt</td><td class="num bad">36.0 s</td><td class="num">7.4 s</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <p>Reading a document-sized prompt took <strong>over eleven minutes before a single word came back.</strong> For the Vendor Extractor use case &mdash; where you would feed it a full page of OCR text &mdash; that is the relevant number, not the 2.8-second cached one.</p>
+  </div>
+
+  <div class="caveat">
+    <span class="lbl">Methodology note, checked and disclosed</span>
+    <p>The &ldquo;cached&rdquo; column looks fast partly because the model&rsquo;s server automatically reuses earlier computation for a prompt it has seen before &mdash; verified directly against the run logs, not assumed. One repeat run even produced an unusually short reply (2 tokens) because the model hit a natural stopping point almost immediately once the cache made it fast to get there. This was investigated specifically rather than quietly averaged in: it does not change the cold-run numbers above, which are the ones that matter for real usage, but it means the cached column should be read as &ldquo;best case, seen before&rdquo; rather than typical repeat performance.</p>
+  </div>
+
+  <h3>More cores help, but only up to a point &mdash; then it gets <em>worse</em></h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Threads</th><th>Reading tok/s</th><th>Writing tok/s</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="num">0.09</td><td class="num">0.27</td><td>Effectively unusable</td></tr>
+        <tr><td class="num">2</td><td class="num">0.57</td><td class="num">0.54</td><td></td></tr>
+        <tr><td class="num">4</td><td class="num">1.07</td><td class="num">1.00</td><td>Big jump from 1 thread</td></tr>
+        <tr><td class="num">7</td><td class="num">1.59</td><td class="num">1.34</td><td></td></tr>
+        <tr><td class="num">13</td><td class="num">1.81</td><td class="num">1.47</td><td class="good">Best writing speed &mdash; matches physical core count</td></tr>
+        <tr><td class="num">20</td><td class="num">1.83</td><td class="num bad">0.93</td><td class="bad">All logical threads &mdash; writing speed drops</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <p>13 threads (this CPU&rsquo;s physical core count) gave the best writing speed. Using all <strong>20</strong> logical threads made writing <em>slower</em>, not faster &mdash; 1.47 down to 0.93 tok/s. The model is limited by how fast memory can feed the processor, not by how many cores are thrown at it, and using every last thread actively hurts. &ldquo;More threads = more speed&rdquo; does not hold here.</p>
+  </div>
+</section>
+
+<!-- ============ VERDICT ============ -->
+<section>
+  <h2>6. What this means</h2>
+
+  <div class="verdict">
+    <span class="lbl">Final &mdash; full benchmark complete</span>
+    <p class="big">Not usable for anything interactive on a CPU-only machine.</p>
+    <p>A responsive chat experience needs roughly 10+ tokens/sec and a sub-second wait. This delivers about <strong>1.1&ndash;1.2 tokens/sec</strong> and, on a document-sized prompt, an <strong>11.4-minute wait</strong> before the first word. That is not a tuning problem &mdash; it is two orders of magnitude off.</p>
+  </div>
+
+  <div class="col">
+    <h3>Three things worth saying to the team</h3>
+    <ul class="tight">
+      <li><strong>The compression claim is true; the speed claim is the problem.</strong> It genuinely does fit in 5.53 GB on a normal laptop. It is simply far too slow once it is there.</li>
+      <li><strong>This machine is memory-tight.</strong> Only 1.23 GB of RAM was left after loading. On a machine with less free memory, results would be worse still, because the system would start swapping to disk.</li>
+      <li><strong>Batch use is a different question.</strong> If something can run overnight with no one waiting &mdash; processing a queue of documents, say &mdash; one token per second may be acceptable. It is only interactive use that is ruled out. That&rsquo;s exactly why the pipeline hook (section 3) was built opt-in rather than left out entirely.</li>
+    </ul>
+
+    <h3>What is left to do</h3>
+    <ul class="tight">
+      <li>Nothing further planned on the benchmark itself &mdash; it&rsquo;s complete, written up, and the raw data is saved for anyone who wants to re-check the numbers.</li>
+      <li>If a faster or smaller model becomes worth testing later, the same script and hardware-detection code can be reused without rewriting anything.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  All figures measured on this machine, CPU-only (<code>-ngl 0</code>, no GPU backend compiled in, verified via <code>--list-devices</code> returning none), model <code>Ternary-Bonsai-2-27B-PTQ1_0.gguf</code>, PrismML llama.cpp build 10709 / commit 9a9394a, Clang 20.1.8. Full report: <code>research/cpu_llm_benchmark/CPU_BENCHMARK_REPORT.md</code>. Raw data: <code>research/cpu_llm_benchmark/results.json</code>.
+</footer>
+
+</div>
+
+</body></html>

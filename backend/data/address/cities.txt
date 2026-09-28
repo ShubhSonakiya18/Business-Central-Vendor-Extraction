@@ -767,3 +767,15 @@ yadgir
 yamunanagar
 yavatmal
 zunheboto
+
+# -----------------------------------------------------------------------------
+# Aliases: "full/expanded name<TAB>canonical form" -- same format as
+# states.txt. A document that spells a district's full name out (often with
+# the shorter/PIN-directory name parenthesised beside it) should resolve to
+# the SAME canonical string the PIN directory already returns, so the two
+# mentions collapse into one value instead of the alias being left behind as
+# ordinary locality text (a duplication bug -- see address_resolver.py's
+# _pick_city() docstring).
+# -----------------------------------------------------------------------------
+Sahibzada Ajit Singh Nagar	S.A.S Nagar
+Sahibzada Ajit Singh Nagar (Mohali)	S.A.S Nagar

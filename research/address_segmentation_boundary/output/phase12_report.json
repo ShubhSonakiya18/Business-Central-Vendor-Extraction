@@ -1,0 +1,57 @@
+{
+  "n_rows": 5000,
+  "predicted_split_index_distribution": {
+    "1": 0.3172,
+    "4": 0.6828
+  },
+  "gt_split_index_distribution": {
+    "1": 0.1834,
+    "2": 0.2652,
+    "3": 0.37,
+    "4": 0.1814
+  },
+  "predictor_only_emits_1_or_4_pct": 1.0,
+  "split_match_consistency_with_index_equality": 1.0,
+  "split_match_rate": 0.1774,
+  "tsr_0_96_threshold_confusion": {
+    "tp": 887,
+    "fp": 0,
+    "fn": 0,
+    "tn": 4113,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+  },
+  "mean_scores_by_split_match": {
+    "token_sequence_ratio": {
+      "false": 0.6794878715610685,
+      "true": 1.0
+    },
+    "char_sequence_ratio": {
+      "false": 0.6635156478244608,
+      "true": 1.0
+    },
+    "fuzzy_ratio": {
+      "false": 61.04330172623389,
+      "true": 100.0
+    }
+  },
+  "high_fuzzy_ratio_on_mismatch_pct": 0.0009725261366399222,
+  "boundary_token_distance_defined_pct": 1.0,
+  "boundary_token_distance_distribution": {
+    "0": 887,
+    "1": 1394,
+    "2": 503,
+    "3": 1024,
+    "4": 619,
+    "5": 528,
+    "6": 45
+  },
+  "validation_engine_verdict_counts": {
+    "ACCEPT": 3750,
+    "REVIEW": 1250
+  },
+  "validation_engine_false_accept_rate_on_mismatches": 0.7556528081692195,
+  "validation_engine_false_flag_rate_on_matches": 0.2762119503945885,
+  "validation_engine_hard_fail_reasons": {}
+}

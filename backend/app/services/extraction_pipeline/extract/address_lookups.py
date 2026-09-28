@@ -48,6 +48,24 @@ def _pin_table() -> dict[str, tuple[str, str]]:
 
 
 @lru_cache(maxsize=1)
+def _all_district_names() -> frozenset[str]:
+    """Every DISTRICT value that appears anywhere in the PIN directory,
+    normalised. Used to tell a "pure" city/town name (never itself a
+    district -- e.g. Mohali) apart from a name that IS a district in its own
+    right (e.g. Tikamgarh, S.A.S Nagar) -- see is_district_name()."""
+    return frozenset(_norm(d) for _, d in _pin_table().values() if d)
+
+
+def is_district_name(token: str) -> bool:
+    """True if `token` is itself a district value somewhere in the PIN
+    directory (regardless of which PIN/state). A city/town that is NEVER a
+    district (e.g. "Mohali") returns False even though it is a perfectly
+    valid, known city -- see is_known_city()."""
+    n = _norm(token)
+    return bool(n) and n in _all_district_names()
+
+
+@lru_cache(maxsize=1)
 def _state_tables() -> tuple[dict[str, str], dict[str, str]]:
     """(normalised-canonical -> canonical, normalised-alias -> canonical)."""
     canonical: dict[str, str] = {}
@@ -67,14 +85,31 @@ def _state_tables() -> tuple[dict[str, str], dict[str, str]]:
 
 
 @lru_cache(maxsize=1)
-def _city_set() -> frozenset[str]:
+def _city_tables() -> tuple[frozenset[str], dict[str, str]]:
+    """(normalised city/district names, normalised-alias -> canonical).
+
+    Same tab-separated format as _state_tables(): a plain line is a known
+    city/district name as-is; an "alias\\tcanonical" line maps a full/expanded
+    name to the abbreviated or PIN-directory form it's an alias of (e.g.
+    "Sahibzada Ajit Singh Nagar" -> "S.A.S Nagar"). Without this, a document
+    that spells the district out in full is never recognised as naming the
+    same place the PIN directory already resolved, and the full name is left
+    behind as ordinary locality text -- duplicating the city instead of being
+    recognised and dropped."""
+    names: set[str] = set()
+    aliases: dict[str, str] = {}
     if not _CITIES_TXT.is_file():
-        return frozenset()
-    return frozenset(
-        _norm(line)
-        for line in _CITIES_TXT.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    )
+        return frozenset(), {}
+    for line in _CITIES_TXT.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "\t" in line:
+            alias, target = line.split("\t", 1)
+            aliases[_norm(alias)] = target.strip()
+        else:
+            names.add(_norm(line))
+    return frozenset(names), aliases
 
 
 # --- public ----------------------------------------------------------------
@@ -95,9 +130,33 @@ def canonical_state(token: str) -> str | None:
 
 
 def is_known_city(token: str) -> bool:
-    """True if the token normalises to a known city / district / town name."""
+    """True if the token normalises to a known city / district / town name,
+    OR to a known alias of one (e.g. "Sahibzada Ajit Singh Nagar" for
+    "S.A.S Nagar") -- see canonical_city()."""
     n = _norm(token)
-    return bool(n) and n in _city_set()
+    if not n:
+        return False
+    names, aliases = _city_tables()
+    return n in names or n in aliases
+
+
+def canonical_city(token: str) -> str | None:
+    """Map a token to its canonical city/district name when it IS one, via an
+    exact or aliased match; None otherwise. Mirrors canonical_state(). Unlike
+    is_known_city() (a plain membership check, used to detect city-shaped
+    tokens generically), this resolves an alias to the SAME canonical string
+    the PIN directory would return for it, which is what lets a duplicate
+    mention (full name in the text + PIN-derived abbreviation) collapse to
+    one value instead of leaving the alias behind as ordinary text."""
+    n = _norm(token)
+    if not n:
+        return None
+    names, aliases = _city_tables()
+    if n in aliases:
+        return aliases[n]
+    if n in names:
+        return token.strip()
+    return None
 
 
 def data_files_present() -> bool:

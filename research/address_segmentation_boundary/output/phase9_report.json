@@ -1,0 +1,19 @@
+{
+  "n_sample": 10000,
+  "ms_per_address": 1.2737923860549927,
+  "city_exact_match_pct": 0.3382,
+  "state_exact_match_pct": 0.356,
+  "pin_exact_match_pct": 0.2474,
+  "pred_n_lines_distribution": {
+    "1": 1291,
+    "2": 2383,
+    "3": 3778,
+    "4": 2548
+  },
+  "pred_confidence_distribution": {
+    "low": 7416,
+    "medium": 2475,
+    "high": 109
+  },
+  "naive_address1_exact_match_pct": 0.1661
+}

@@ -1,0 +1,188 @@
+{
+  "n_base_addresses": 20000,
+  "n_perturbation_rows": 191602,
+  "mean_scores_address1_by_perturbation": {
+    "boundary_shift_left1": {
+      "a1_exact_match": 0.0,
+      "a1_normalized_exact_match": 0.0,
+      "a1_char_sequence_ratio": 0.8345774826107346,
+      "a1_token_jaccard": 0.7230535515873017,
+      "a1_token_containment": 0.7230535515873017,
+      "a1_fuzzy_ratio": 0.8345774826107346,
+      "a1_fuzzy_partial_ratio": 0.95315,
+      "a1_fuzzy_token_sort_ratio": 0.8345774826107346,
+      "a1_fuzzy_token_set_ratio": 0.95315,
+      "a1_token_sequence_ratio": 0.8119847064940564
+    },
+    "boundary_shift_left2": {
+      "a1_exact_match": 0.0,
+      "a1_normalized_exact_match": 0.0,
+      "a1_char_sequence_ratio": 0.6392066376070304,
+      "a1_token_jaccard": 0.5127207696451782,
+      "a1_token_containment": 0.5127207696451782,
+      "a1_fuzzy_ratio": 0.6392066376070304,
+      "a1_fuzzy_partial_ratio": 0.8508629281854903,
+      "a1_fuzzy_token_sort_ratio": 0.6392066376070304,
+      "a1_fuzzy_token_set_ratio": 0.8508629281854903,
+      "a1_token_sequence_ratio": 0.6241681300683032
+    },
+    "boundary_shift_right1": {
+      "a1_exact_match": 0.0,
+      "a1_normalized_exact_match": 0.0,
+      "a1_char_sequence_ratio": 0.8630152915707257,
+      "a1_token_jaccard": 0.7996260642135642,
+      "a1_token_containment": 1.0,
+      "a1_fuzzy_ratio": 0.8630152915707257,
+      "a1_fuzzy_partial_ratio": 1.0,
+      "a1_fuzzy_token_sort_ratio": 0.8630152915707257,
+      "a1_fuzzy_token_set_ratio": 1.0,
+      "a1_token_sequence_ratio": 0.8811247566193697
+    },
+    "boundary_shift_right2": {
+      "a1_exact_match": 0.0,
+      "a1_normalized_exact_match": 0.0,
+      "a1_char_sequence_ratio": 0.7608863789673542,
+      "a1_token_jaccard": 0.6642446213322134,
+      "a1_token_containment": 1.0,
+      "a1_fuzzy_ratio": 0.7608863789673542,
+      "a1_fuzzy_partial_ratio": 1.0,
+      "a1_fuzzy_token_sort_ratio": 0.7608863789673542,
+      "a1_fuzzy_token_set_ratio": 1.0,
+      "a1_token_sequence_ratio": 0.7820885993657649
+    },
+    "case_change": {
+      "a1_exact_match": 0.01725,
+      "a1_normalized_exact_match": 1.0,
+      "a1_char_sequence_ratio": 1.0,
+      "a1_token_jaccard": 1.0,
+      "a1_token_containment": 1.0,
+      "a1_fuzzy_ratio": 0.46356270008445016,
+      "a1_fuzzy_partial_ratio": 0.49613216184723596,
+      "a1_fuzzy_token_sort_ratio": 0.46348813002904,
+      "a1_fuzzy_token_set_ratio": 0.4642902446618247,
+      "a1_token_sequence_ratio": 1.0
+    },
+    "clean": {
+      "a1_exact_match": 1.0,
+      "a1_normalized_exact_match": 1.0,
+      "a1_char_sequence_ratio": 1.0,
+      "a1_token_jaccard": 1.0,
+      "a1_token_containment": 1.0,
+      "a1_fuzzy_ratio": 1.0,
+      "a1_fuzzy_partial_ratio": 1.0,
+      "a1_fuzzy_token_sort_ratio": 1.0,
+      "a1_fuzzy_token_set_ratio": 1.0,
+      "a1_token_sequence_ratio": 1.0
+    },
+    "token_drop": {
+      "a1_exact_match": 1.0,
+      "a1_normalized_exact_match": 1.0,
+      "a1_char_sequence_ratio": 1.0,
+      "a1_token_jaccard": 1.0,
+      "a1_token_containment": 1.0,
+      "a1_fuzzy_ratio": 1.0,
+      "a1_fuzzy_partial_ratio": 1.0,
+      "a1_fuzzy_token_sort_ratio": 1.0,
+      "a1_fuzzy_token_set_ratio": 1.0,
+      "a1_token_sequence_ratio": 1.0
+    },
+    "token_duplicate": {
+      "a1_exact_match": 0.0,
+      "a1_normalized_exact_match": 0.0,
+      "a1_char_sequence_ratio": 0.8757027023415643,
+      "a1_token_jaccard": 1.0,
+      "a1_token_containment": 1.0,
+      "a1_fuzzy_ratio": 0.8757027023415643,
+      "a1_fuzzy_partial_ratio": 0.9497954445671072,
+      "a1_fuzzy_token_sort_ratio": 0.8757027023415643,
+      "a1_fuzzy_token_set_ratio": 1.0,
+      "a1_token_sequence_ratio": 0.8811247566193697
+    },
+    "token_reorder": {
+      "a1_exact_match": 1.0,
+      "a1_normalized_exact_match": 1.0,
+      "a1_char_sequence_ratio": 1.0,
+      "a1_token_jaccard": 1.0,
+      "a1_token_containment": 1.0,
+      "a1_fuzzy_ratio": 1.0,
+      "a1_fuzzy_partial_ratio": 1.0,
+      "a1_fuzzy_token_sort_ratio": 1.0,
+      "a1_fuzzy_token_set_ratio": 1.0,
+      "a1_token_sequence_ratio": 1.0
+    },
+    "whitespace_punct": {
+      "a1_exact_match": 0.1874,
+      "a1_normalized_exact_match": 0.1874,
+      "a1_char_sequence_ratio": 0.9731343511057429,
+      "a1_token_jaccard": 1.0,
+      "a1_token_containment": 1.0,
+      "a1_fuzzy_ratio": 0.9731343511057429,
+      "a1_fuzzy_partial_ratio": 0.9454581863856687,
+      "a1_fuzzy_token_sort_ratio": 0.9194030533172287,
+      "a1_fuzzy_token_set_ratio": 0.9408014082538321,
+      "a1_token_sequence_ratio": 1.0
+    }
+  },
+  "best_threshold_per_metric": {
+    "char_sequence_ratio": {
+      "threshold": 0.96,
+      "precision": 0.9657100146415882,
+      "recall": 0.9766194499668654,
+      "f1": 0.9711340949223395
+    },
+    "exact_match": {
+      "threshold": 0.5,
+      "precision": 0.7289689997962002,
+      "recall": 1.0,
+      "f1": 0.8432412609851611
+    },
+    "fuzzy_partial_ratio": {
+      "threshold": 0.99,
+      "precision": 0.2719586374695864,
+      "recall": 0.13888543737574552,
+      "f1": 0.18387070241816084
+    },
+    "fuzzy_ratio": {
+      "threshold": 0.96,
+      "precision": 0.8039242426825318,
+      "recall": 0.9766194499668654,
+      "f1": 0.8818969789338844
+    },
+    "fuzzy_token_set_ratio": {
+      "threshold": 0.5,
+      "precision": 0.2365012826127761,
+      "recall": 0.039140159045725646,
+      "f1": 0.06716477580646593
+    },
+    "fuzzy_token_sort_ratio": {
+      "threshold": 0.99,
+      "precision": 0.7289689997962002,
+      "recall": 1.0,
+      "f1": 0.8432412609851611
+    },
+    "normalized_exact_match": {
+      "threshold": 0.5,
+      "precision": 0.85595774098628,
+      "recall": 1.0,
+      "f1": 0.9223892571297587
+    },
+    "token_containment": {
+      "threshold": 0.91,
+      "precision": 1.0,
+      "recall": 0.3921988899933731,
+      "f1": 0.5634236498999651
+    },
+    "token_jaccard": {
+      "threshold": 0.91,
+      "precision": 1.0,
+      "recall": 0.7662048542080848,
+      "f1": 0.8676285226853019
+    },
+    "token_sequence_ratio": {
+      "threshold": 0.96,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  }
+}

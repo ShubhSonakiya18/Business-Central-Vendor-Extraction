@@ -157,7 +157,9 @@ cases:
       The exact shape of a GST REG-06 "Address of Principal Place of Business"
       value -- building/road/city/district/state/pin flattened onto one line.
       Both a city (Mohali) and the district (S.A.S Nagar) appear; the parser
-      should take the city.
+      should take the city. Mohali is a "pure" city name -- it never appears
+      as a district value anywhere in the PIN directory -- so it outranks
+      S.A.S Nagar, which is ONLY ever a district, never an independent city.
     address: "IT PARK, PHASE 8, MOHALI, S.A.S Nagar, Punjab, 160059"
     expect:
       address_1: "IT PARK, PHASE 8"
@@ -165,3 +167,21 @@ cases:
       city: "Mohali"
       state: "Punjab"
       pin_code: "160059"
+
+  - id: two_districts_pin_disambiguates
+    note: >-
+      Both "Niwari" and "Tikamgarh" are known cities AND real, independent
+      PIN-directory districts (each with its own PINs) -- so neither can be
+      preferred as a "pure city" the way Mohali is. The PIN (472442) itself
+      resolves to Niwari specifically; Tikamgarh is a different, larger
+      district mentioned in the same address, not an alias or bureaucratic
+      label for the same place. The city must be the one THIS PIN verifies
+      (Niwari), not whichever known-district word happens to appear last.
+      Regression case for a bug where the resolver picked Tikamgarh instead.
+    address: "Ward No. 7, Nayak Colony, Niwari Tigela, Jhansi Road, Niwari, Tikamgarh, Madhya Pradesh, 472442"
+    expect:
+      address_1: "Ward No. 7, Nayak Colony, Niwari Tigela, Jhansi Road, Tikamgarh"
+      address_2: ""
+      city: "Niwari"
+      state: "Madhya Pradesh"
+      pin_code: "472442"

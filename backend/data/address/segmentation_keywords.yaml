@@ -54,6 +54,13 @@ tiers:
            khata, survey, sno, gat, cts, rs, msno, mno, premises, stall,
            counter, kiosk, bay, dock, level, basement, mezzanine, terrace,
            penthouse, office,
+           # SCF (Shop-Cum-Flat), SCO (Shop-Cum-Office) and Booth are
+           # commercial-unit identifiers used on Chandigarh/Mohali/SAS Nagar-
+           # area addresses ("SCF 19", "SCO 284", "Booth 307-308") -- without
+           # these, each fell through to `unknown` at locality level, which
+           # either swallowed the whole address onto one line (no boundary
+           # evidence anywhere) or failed to anchor address_1 at all.
+           scf, sco, booth,
            # "ground" as a HEAD covers "GROUND LEVEL", which the tail list
            # cannot: `level` is a head word here, not a tail one, and adding
            # it to tail as well would let inject_boundaries cut "GROUND |
