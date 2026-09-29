@@ -85,6 +85,16 @@ class Settings(BaseSettings):
     BC_VENDOR_POSTING_GROUP: str = ""
     BC_CUSTOMER_POSTING_GROUP: str = ""
 
+    # -- BC address representation layer ---------------------------------
+    # See docs/ADDRESS_SEGMENTATION_PLAN.md. BC_TARGET_PROFILE names the YAML
+    # in backend/config/bc_targets/ that supplies BC's field-length limits.
+    # Both feature flags default OFF: with them off, address segmentation and
+    # the BC payload endpoints are byte-for-byte identical to today's
+    # behaviour (see tests/test_address_bc_invariants.py's flag-off guard).
+    BC_TARGET_PROFILE: str = "bc22_in_vendorcard"
+    BC_ADDRESS_LAYER_ENABLED: bool = False
+    BC_PAYLOAD_GATE_ENABLED: bool = False
+
     # -- GSTIN live verification (gstinapi.in) --------------------------
     # Confirms a GSTIN is actually registered/active in the GST registry --
     # separate from validator.py's regex/checksum format check, which never
