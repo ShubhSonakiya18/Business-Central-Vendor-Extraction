@@ -99,7 +99,7 @@ flowchart TD
 | **Repo** | `extract/address_resolver.py::resolve_address_blob(multiline=True)`, `extract/address_segmenter.py::segment_leftover` / `_split_by_role` (ocr-testing), called from `semantic_engine._resolve_combined_address` |
 | **Checks** | PIN directory, state canonicalization, district-aware city, role split, confidence |
 | **Constraints** | C-ADR-01…10, C-LEN-03/04/05/06 |
-| **Errors** | `ADDRESS_REBALANCED`, `ADDRESS_OVERFLOW`, `PIN_STATE_MISMATCH` |
+| **Errors** | `ADDRESS_BC_LENGTH_REBALANCE`, `ADDRESS_OVERFLOW`, `PIN_STATE_MISMATCH` |
 | **Auto-fix?** | **Boundary shift only** (validation design §7) |
 | **Review?** | If rebalanced, overflowed, or low confidence |
 | **Output** | Address 1, Address 2, City, State, PIN, each with provenance + BC-fit status |

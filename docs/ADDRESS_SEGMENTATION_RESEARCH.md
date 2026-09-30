@@ -1140,6 +1140,13 @@ as an explicit business rule, not as source code:
    comment: "NOT a claim that the last locality before a city is always administratively
    distinct").
 
+> **Superseded (2026-09-30).** Steps 3–4 above describe the earlier gap-score cut, which could
+> pack content into `Address 3`/`Address 4`. Production now uses the role-based split
+> (commit a0e0fc8): Address 1 is the initial contiguous run of premise/unit fragments, everything
+> after it is Address 2, and `Address 3`/`Address 4` are never populated. Business Central's
+> line widths are handled by a separate layer — see `docs/ADDRESS_SEGMENTATION_PLAN.md`. The
+> text above is kept as the research record.
+
 This rule is genuinely **generalized** in the sense the user asked for: it does not reference
 `split_index`, `component_sequence`, or any column from the synthetic Excel corpus at all. It
 was derived from, and validated against, real vendor address text, and it already ships in

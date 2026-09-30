@@ -85,7 +85,7 @@ Target system: the tenant runs **Business Central 22 on-premises**. The repo's O
 
 | ID | Measurement | How |
 |---|---|---|
-| M1 | `resolve_address_blob(..., multiline=True)` on `ocr-testing@a0e0fc8` produces Address 2 = 69 chars for the canonical `bc_floor_block_park_localities` address, at confidence `high` | `python -c` run from `backend/` (see research report §7.6) |
+| M1 | `resolve_address_blob(..., multiline=True)` on `ocr-testing@a0e0fc8` produces Address 2 = 69 chars for the canonical `bc_floor_block_park_localities` address, at confidence `high` | `python -c` run from `backend/` (see research report §7.2) |
 | M2 | Expected Address 2 > 50 chars in 5 of 136 eval cases (`address_vendor_lines` 1/20, `address_line_cases` 3/74, `address_holdout_cases` 1/30, `address_cases` 0/12). Expected Address 1 is never > 43 chars. | YAML scan of `backend/app/eval/*.yaml` on `ocr-testing` |
 | M3 | `rapidfuzz.fuzz.ratio`: GSTIN with 1 differing char = 93.3; with 2 differing chars = 86.7; PAN with 1 = 90.0; account no. with 1 = 92.9. All are above the configured 85 threshold, so they are treated as "consistent". | `python -c` with `rapidfuzz==3.14.5` (the pinned version) |
 | M4 | No GSTIN checksum logic exists anywhere in `backend/`. `config.py` comments claim a "regex/checksum format check". | `git grep -i checksum` on `ocr-testing` |

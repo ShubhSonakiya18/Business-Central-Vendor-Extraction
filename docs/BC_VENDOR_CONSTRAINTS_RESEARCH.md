@@ -325,7 +325,7 @@ It would join address_2..4 into Address 2 and truncate at the last space before 
 
 - **Keep the semantic role split unchanged.** BC doesn't care, and the convention is sound.
 - **Add a length-aware post-step** (validation design §7). If Address 2 exceeds 50, move the single boundary to the right, whole fragments at a time, until Address 2 ≤ 50 and Address 1 ≤ 100. If no such boundary exists, block (`ADDRESS_OVERFLOW`). Never truncate.
-- **The step is lossless and order-preserving.** It reconstructs exactly the same string, and the `ADDRESS_REBALANCED` finding lets a reviewer see it.
+- **The step is lossless and order-preserving.** It reconstructs exactly the same string, and the `ADDRESS_BC_LENGTH_REBALANCE` finding lets a reviewer see it.
 - **Worked result for the canonical case:**
   - Address 1 = `3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK` (58)
   - Address 2 = `MOHIARY CHANDIBAGAN, ANDUL, Natibpur` (36)
@@ -699,7 +699,7 @@ Defined in full in [validation design §2](BC_VENDOR_VALIDATION_DESIGN.md#2-erro
 |---|---|
 | **Extraction** | `FIELD_NOT_FOUND`, `LOW_CONFIDENCE`, `CAPTION_LEAK`, `OCR_AMBIGUOUS_CHAR`, `DOCUMENT_UNREADABLE`, `DOCUMENT_TYPE_UNKNOWN` |
 | **Validation** | `FIELD_REQUIRED`, `FIELD_TOO_LONG`, `INVALID_FORMAT`, `INVALID_GSTIN`, `INVALID_PAN`, `INVALID_PIN`, `INVALID_IFSC`, `INVALID_BANK_ACCOUNT`, `INVALID_EMAIL`, `INVALID_PHONE`, `INVALID_STATE`, `INVALID_COUNTRY` |
-| **Business rule** | `CROSS_DOCUMENT_MISMATCH`, `GSTIN_PAN_MISMATCH`, `GSTIN_STATE_MISMATCH`, `PIN_STATE_MISMATCH`, `NAME_PAN_INITIAL_MISMATCH`, `GSTIN_NOT_ACTIVE`, `INVALID_GST_VENDOR_TYPE`, `MISSING_TDS_CONFIGURATION`, `ADDRESS_REBALANCED`, `ADDRESS_OVERFLOW`, `DERIVED_VALUE_UNCONFIRMED`, `DUPLICATE_VENDOR`, `DUPLICATE_GSTIN`, `DUPLICATE_PAN`, `DUPLICATE_BANK_ACCOUNT` |
+| **Business rule** | `CROSS_DOCUMENT_MISMATCH`, `GSTIN_PAN_MISMATCH`, `GSTIN_STATE_MISMATCH`, `PIN_STATE_MISMATCH`, `NAME_PAN_INITIAL_MISMATCH`, `GSTIN_NOT_ACTIVE`, `INVALID_GST_VENDOR_TYPE`, `MISSING_TDS_CONFIGURATION`, `ADDRESS_BC_LENGTH_REBALANCE`, `ADDRESS_OVERFLOW`, `DERIVED_VALUE_UNCONFIRMED`, `DUPLICATE_VENDOR`, `DUPLICATE_GSTIN`, `DUPLICATE_PAN`, `DUPLICATE_BANK_ACCOUNT` |
 | **Configuration** | `MASTER_DATA_NOT_FOUND`, `CONFIGURATION_MISSING`, `NO_SERIES_MISSING`, `TEMPLATE_AMBIGUOUS`, `TENANT_FIELD_UNKNOWN` |
 | **Business Central** | `BC_STRING_TOO_LONG`, `BC_TABLE_RELATION`, `BC_TESTFIELD`, `BC_GST_VALIDATION`, `BC_CALLBACK_NOT_ALLOWED`, `BC_PERMISSION`, `BC_VALIDATION_FAILED` |
 | **Integration** | `API_VALIDATION_FAILED`, `INT_UNREACHABLE`, `INT_TIMEOUT_UNKNOWN_OUTCOME`, `INT_PARTIAL_CREATE`, `INT_VERIFY_MISMATCH`, `MANUAL_REVIEW_REQUIRED` (record-level roll-up) |
@@ -714,7 +714,7 @@ Headline rules:
 - **GSTIN** format, checksum or PAN-slice failure, or any cross-document difference → **BLOCK**.
 - **Vendor Posting Group** from a class rule/template → **AUTO_LOOKUP**. Missing from both → **MANUAL_REVIEW** (admin).
 - **Address:**
-  - Address 2 > 50 but a boundary shift fits → **AUTO_FIX** + `ADDRESS_REBALANCED` (one-click confirm).
+  - Address 2 > 50 but a boundary shift fits → **MANUAL_REVIEW** (one-click confirm) + `ADDRESS_BC_LENGTH_REBALANCE`.
   - No fit → **BLOCK**.
   - **Never truncate.**
 - **Account number** containing a letter after removing spaces/hyphens → **BLOCK**.
@@ -800,7 +800,7 @@ Branch: **O** = `ocr-testing@a0e0fc8`, **M** = `master@5677e46`, **B** = both. N
 | R-16 | O | `backend/config/field_dictionary.yaml` | `account_number.normalization` | `[remove_spaces, digits_only]` | `[remove_spaces, strip_separators]` + `account_number_raw` validator on the raw value | Silent digit loss | C-NRM-02 | 4, 6 | T-BNK-01 |
 | R-17 | O | `extract/normalizer.py` | `normalize()`, `_fix_ifsc_confusions`, `_split_corporate_suffix` | Returns only the new string; no record of which op changed what | Return (value, ops_applied) or emit notes. Mark IFSC repair as a candidate (review unless in the RBI master). Note name re-spacing. | Provenance for changed identifiers | C-NRM-03/04/07 | 4 | T-BNK-02 |
 | R-18 | O | `backend/config/field_dictionary.yaml` | new fields | – | `gst_registration_type`, `trade_name`, `account_holder_name`; split `ifsc` from SWIFT | GST Vendor Type, Name 2, fraud check | C-GST-15, C-BNK-07 | 3 | extraction eval |
-| R-19 | O | **new** `extract/bc_address_fit.py` (+ expose `fragments`/boundary from `SegmentedAddress`) | `fit_to_bc()` | – | Order-preserving boundary shift. `ADDRESS_REBALANCED` / `ADDRESS_OVERFLOW` findings. No change to `_split_by_role`. | Address 2 = 50 | C-ADR-03/10 | 5 | T-ADR-01…08 |
+| R-19 | O | **new** `extract/bc_address_fit.py` (+ expose `fragments`/boundary from `SegmentedAddress`) | `fit_to_bc()` | – | Order-preserving boundary shift. `ADDRESS_BC_LENGTH_REBALANCE` / `ADDRESS_OVERFLOW` findings. No change to `_split_by_role`. | Address 2 = 50 | C-ADR-03/10 | 5 | T-ADR-01…08 |
 | R-20 | O | `extract/semantic_engine.py` | `_resolve_combined_address`, validation step 3 | Flags split values; replaces an invalid country with the default silently (note only) | Carry the BC-fit finding into `needs_review`. Keep the country default but resolve the BC code in stage 8. | Review routing | C-ADR-03, C-NRM-06 | 5, 6 | T-ADR-* |
 | R-21 | B | `backend/app/config/config.py` | GSTIN comment (line ~90); `BC_ODATA_BASE` default `http://` | Claims a checksum that doesn't exist; HTTP default | Fix the comment; production config rejects `http://` | Accuracy; transport | C-SEC-05, M4 | – | T-SEC-04 |
 | R-22 | B | `backend/app/models/model.py` | `Vendor` | `ifsc_swift_code` combined; address_3/4; `bc_status` 3-state | Add `ifsc`, `swift`, `gst_vendor_type`, `bc_state_code`, `assessee_code`, `trade_name`, `bc_push_steps` (JSON), review-decision log; lifecycle states | Data needed for BC + audit | C-BNK-05, validation design §12 | 9–14 | migration tests |

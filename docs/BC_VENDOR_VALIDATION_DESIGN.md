@@ -68,7 +68,7 @@ Each finding has `code`, `class`, `severity`, `field`, `constraint_id`, `message
 | `GSTIN_NOT_ACTIVE` | Registry says not Active (optional check) | C-GST-16 | MANUAL_REVIEW |
 | `INVALID_GST_VENDOR_TYPE` | Type inconsistent with GSTIN/ARN/State Code | C-GST-08/09/10 | BLOCK_SUBMISSION |
 | `MISSING_TDS_CONFIGURATION` | TDS applicable but no Assessee Code or Section decided | C-TDS-01/02 | MANUAL_REVIEW |
-| `ADDRESS_REBALANCED` | Boundary moved to fit BC widths (content unchanged) | C-ADR-03 | MANUAL_REVIEW (warning, one click) |
+| `ADDRESS_BC_LENGTH_REBALANCE` | Boundary moved to fit BC widths (content unchanged) | C-ADR-03 | MANUAL_REVIEW (warning, one click) |
 | `ADDRESS_OVERFLOW` | No boundary satisfies 100/50 | C-ADR-03 | BLOCK_SUBMISSION |
 | `DERIVED_VALUE_UNCONFIRMED` | Inferred value (website from e-mail, city from PIN) not yet confirmed | C-NRM-09 | MANUAL_REVIEW |
 | `DUPLICATE_VENDOR` | Normalized name matches an existing BC vendor | C-DUP-06 | MANUAL_REVIEW |
@@ -132,7 +132,7 @@ Decision table (including the brief's examples):
 | GSTIN differs by any character between GST certificate and Udyam | **BLOCK_SUBMISSION** (until a human picks the correct one) |
 | Vendor Posting Group missing from documents but provided by a configured template/config rule | **AUTO_LOOKUP** |
 | Vendor Posting Group missing from both template and configuration | **MANUAL_REVIEW** (admin) |
-| Address 2 > 50 but a boundary shift fits both lines | **AUTO_FIX** + warning `ADDRESS_REBALANCED` (one-click confirm) |
+| Address 2 > 50 but a boundary shift fits both lines | **MANUAL_REVIEW** (one-click confirm) + `ADDRESS_BC_LENGTH_REBALANCE` |
 | Address exceeds BC limits and no boundary fits | **BLOCK_SUBMISSION** (`ADDRESS_OVERFLOW`). **Never truncate.** |
 | State "Dadra and Nagar Haveli and Daman and Diu" (40) > County 30 | **BLOCK_SUBMISSION** until the company's abbreviation rule exists, then AUTO_FIX via a config map |
 | Country "India" in documents | **AUTO_LOOKUP** → tenant code (`IN`/`INDIA`) |
@@ -295,11 +295,11 @@ if len(J(f[0:b])) <= MAX1 and len(J(f[b:n])) <= MAX2:     -> keep (no finding)
 if len(J(f[b:n])) > MAX2:
     for nb in b+1 .. n:                                    # move boundary right only
         if len(J(f[0:nb])) > MAX1: break
-        if len(J(f[nb:n])) <= MAX2: -> use nb, finding ADDRESS_REBALANCED
+        if len(J(f[nb:n])) <= MAX2: -> use nb, finding ADDRESS_BC_LENGTH_REBALANCE
 if len(J(f[0:b])) > MAX1:
     for nb in b-1 .. 0:                                    # move boundary left only
         if len(J(f[nb:n])) > MAX2: break
-        if len(J(f[0:nb])) <= MAX1: -> use nb, finding ADDRESS_REBALANCED
+        if len(J(f[0:nb])) <= MAX1: -> use nb, finding ADDRESS_BC_LENGTH_REBALANCE
 otherwise -> finding ADDRESS_OVERFLOW (BLOCK), values unchanged
 ```
 
@@ -313,9 +313,9 @@ Worked examples (computed with the rule above):
 
 | Case | Segmenter output (A1 / A2 lengths) | After fit | Finding |
 |---|---|---|---|
-| `bc_floor_block_park_localities` | `3RD FLOOR, PART A BLOCK B` (25) / `SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur` (69) | `3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK` (58) / `MOHIARY CHANDIBAGAN, ANDUL, Natibpur` (36) | ADDRESS_REBALANCED |
-| `ho24_five_locality_run…` (live segmenter output) | `SEZ UNIT 4, BRIGADE TECH GARDENS` (32) / `KADUBEESANAHALLI, DODDANEKKUNDI, MARATHAHALLI, BELLANDUR, VARTHUR` (65) | `SEZ UNIT 4, BRIGADE TECH GARDENS, KADUBEESANAHALLI` (50) / `DODDANEKKUNDI, MARATHAHALLI, BELLANDUR, VARTHUR` (47) | ADDRESS_REBALANCED |
-| No premise fragment (A1 empty) | `` (0) / `SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur, NEAR RAILWAY STATION` (89; live segmenter output, confidence `low`) | `SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN` (52) / `ANDUL, Natibpur, NEAR RAILWAY STATION` (37) | ADDRESS_REBALANCED |
+| `bc_floor_block_park_localities` | `3RD FLOOR, PART A BLOCK B` (25) / `SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur` (69) | `3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK` (58) / `MOHIARY CHANDIBAGAN, ANDUL, Natibpur` (36) | ADDRESS_BC_LENGTH_REBALANCE |
+| `ho24_five_locality_run…` (live segmenter output) | `SEZ UNIT 4, BRIGADE TECH GARDENS` (32) / `KADUBEESANAHALLI, DODDANEKKUNDI, MARATHAHALLI, BELLANDUR, VARTHUR` (65) | `SEZ UNIT 4, BRIGADE TECH GARDENS, KADUBEESANAHALLI` (50) / `DODDANEKKUNDI, MARATHAHALLI, BELLANDUR, VARTHUR` (47) | ADDRESS_BC_LENGTH_REBALANCE |
+| No premise fragment (A1 empty) | `` (0) / `SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur, NEAR RAILWAY STATION` (89; semantic segmenter output, confidence `low`) | `SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN` (52) / `ANDUL, Natibpur, NEAR RAILWAY STATION` (37) | `ADDRESS_1_BACKFILLED` (AUTO_FIX) -- the A1 backfill (first 2 of 5 fragments) already fits, so no BC rebalance runs. Corrected 2026-09-30: this row predated the backfill. |
 | Screenshot vendor (Peenya) | `BUILDING D` (10) / `4TH PHASE MAIN ROAD, PEENYA INDUSTRIAL AREA` (43) | unchanged | – |
 
 Where it lives: a new pure function, e.g. `extract/bc_address_fit.py::fit_to_bc(fragments, boundary, limits)`, called from the BC payload builder (or the resolver when a BC target is configured). It doesn't touch `_split_by_role`.

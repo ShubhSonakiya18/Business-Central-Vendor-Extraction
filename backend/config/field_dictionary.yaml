@@ -244,9 +244,10 @@ fields:
 
   # ---------------------------------------------------------------------------
   # ADDRESS
-  # Address lines are positional rather than semantic: address_3/address_4 exist
-  # only because the Excel template has those rows. They carry no labels of
-  # their own and are filled by the overflow rule in the normalizer.
+  # address_3/address_4 exist only because the Excel template has those rows.
+  # They carry no labels of their own and are never populated: the vendor path
+  # splits an address into Address 1 / Address 2 only, matching Business
+  # Central (see docs/ADDRESS_SEGMENTATION_PLAN.md). There is no overflow rule.
   # ---------------------------------------------------------------------------
   address_1:
     description: Building / flat number, floor, premises name

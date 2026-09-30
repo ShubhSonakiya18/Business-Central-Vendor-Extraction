@@ -1,6 +1,13 @@
 # Address Segmentation Plan: Semantic Truth + Business Central Representation
 
-**Status:** design only. Branch `ocr-testing` (HEAD 7fe9d7e). No code has changed.
+**Status (2026-09-30):** implemented through step 14 on branch `ocr-testing`, behind two flags that are both **off** by default (`BC_ADDRESS_LAYER_ENABLED`, `BC_PAYLOAD_GATE_ENABLED`). With both off, behaviour is unchanged. Still open:
+- **Enabling the flags.** Step 9's shadow run over 239 saved real runs gave 208 unchanged, 13 one-click rebalances and 15 BLOCKs (11 distinct long addresses no whole-fragment split can fit).
+- **The `address_holdout_cases.yaml` migration** (step 8). It needs a decision, because that file is a frozen holdout.
+- **Step 15**, the `master` merge.
+- **Steps 16–17**, which are optional or depend on the tenant.
+- **The frontend panel** has been built but not yet walked through in a browser.
+
+The design text below is unchanged from the approved version, except where a later decision is noted.
 
 **Citations used below:**
 - RESEARCH / REGISTRY / DESIGN / MATRIX / PIPELINE / TESTPLAN = `docs/BC_VENDOR_*.md`

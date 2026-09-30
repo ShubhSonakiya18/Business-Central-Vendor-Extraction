@@ -69,8 +69,8 @@ Companion to [BC_VENDOR_CONSTRAINTS_RESEARCH.md](BC_VENDOR_CONSTRAINTS_RESEARCH.
 
 | ID | Constraint | Given / When / Then |
 |---|---|---|
-| T-ADR-01 | C-ADR-03 | Canonical `bc_floor_block_park_localities` → A1 = `3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK` (58), A2 = `MOHIARY CHANDIBAGAN, ANDUL, Natibpur` (36), finding `ADDRESS_REBALANCED`. |
-| T-ADR-02 | C-ADR-03 | `ho24_five_locality_run…` live output → A1 50 / A2 47, `ADDRESS_REBALANCED`. |
+| T-ADR-01 | C-ADR-03 | Canonical `bc_floor_block_park_localities` → A1 = `3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK` (58), A2 = `MOHIARY CHANDIBAGAN, ANDUL, Natibpur` (36), finding `ADDRESS_BC_LENGTH_REBALANCE`. |
+| T-ADR-02 | C-ADR-03 | `ho24_five_locality_run…` live output → A1 50 / A2 47, `ADDRESS_BC_LENGTH_REBALANCE`. |
 | T-ADR-03 | C-ADR-10 | Empty A1 with 5 fragments → A1 gets the leading fragments until A2 ≤ 50. |
 | T-ADR-04 | C-ADR-03 | A single fragment of 60 chars that falls in A2 → moved into A1 if A1 stays ≤ 100, else `ADDRESS_OVERFLOW`. |
 | T-ADR-05 | C-ADR-03 | Total > 152 chars (100 + ", " + 50) → `ADDRESS_OVERFLOW`, values unchanged, **no truncation**. |
@@ -107,7 +107,7 @@ Companion to [BC_VENDOR_CONSTRAINTS_RESEARCH.md](BC_VENDOR_CONSTRAINTS_RESEARCH.
 | ID | Constraint | Given / When / Then |
 |---|---|---|
 | T-GATE-01 | C-NRM-08 | Any over-length value → payload endpoint returns 409/422 with findings. **No `_truncated_fields` concept exists anymore.** |
-| T-GATE-02 | C-NRM-08 | Rewrite of `test_long_joined_address_is_truncated_to_fit`: the same input now yields `ADDRESS_REBALANCED` or `ADDRESS_OVERFLOW`, never a cut value. |
+| T-GATE-02 | C-NRM-08 | Rewrite of `test_long_joined_address_is_truncated_to_fit`: the same input now yields `ADDRESS_BC_LENGTH_REBALANCE` or `ADDRESS_OVERFLOW`, never a cut value. |
 | T-GATE-03 | §3 of the validation design | Record with an open `MANUAL_REVIEW` → gate refuses. After recorded resolution → gate passes. |
 | T-GATE-04 | C-API-03 | Target profile `verified_against_metadata: false` for `PAN_Number` → gate refuses with `TENANT_FIELD_UNKNOWN`. |
 | T-GATE-05 | C-NRM-09 | Derived website unconfirmed → absent from the payload. |
