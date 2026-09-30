@@ -65,6 +65,19 @@ class TestFlagWiring:
         monkeypatch.setattr(settings, "BC_ADDRESS_LAYER_ENABLED", True)
         assert resolve_address_blob(addr, multiline=True).representation is not None
 
+    def test_layer_without_gate_refuses_to_start(self):
+        """The layer's rebalance needs the gate's one-click confirmation, so
+        the layer on with the gate off would let a rebalanced address reach
+        BC unconfirmed -- that configuration must not load."""
+        from pydantic import ValidationError
+
+        from app.config.config import Settings
+
+        with pytest.raises(ValidationError, match="requires BC_PAYLOAD_GATE_ENABLED"):
+            Settings(SECRET_KEY="x" * 40, BC_ADDRESS_LAYER_ENABLED=True, BC_PAYLOAD_GATE_ENABLED=False)
+        for layer, gate in ((False, False), (False, True), (True, True)):
+            Settings(SECRET_KEY="x" * 40, BC_ADDRESS_LAYER_ENABLED=layer, BC_PAYLOAD_GATE_ENABLED=gate)
+
     def test_non_multiline_path_never_uses_the_layer(self):
         r = resolve_address_blob("F-192, Phase 8B, SAS Nagar, Punjab 160055", bc_layer=True)
         assert r.representation is None
