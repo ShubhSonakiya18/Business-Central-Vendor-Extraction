@@ -180,6 +180,34 @@
 }
 .bc-mark-row .form-input { flex: 1 1 260px; }
 
+/* BC gate findings: before/after + one-click confirm */
+.bc-findings { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.bc-findings-title { font-size: 0.88rem; font-weight: 600; color: var(--color-warning-text); margin: 0; }
+.bc-finding {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-warning);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+}
+.bc-finding.is-done { border-left-color: var(--color-success); }
+.bc-finding-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.bc-finding-label { font-weight: 600; font-size: 0.86rem; color: var(--color-text-heading); }
+.bc-finding-field { font-size: 0.78rem; color: var(--color-text-muted); }
+.bc-beforeafter { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin: 4px 0 8px; table-layout: fixed; }
+.bc-beforeafter th, .bc-beforeafter td {
+  text-align: left; vertical-align: top; padding: 5px 6px;
+  border-bottom: 1px solid var(--color-border); overflow-wrap: anywhere;
+}
+.bc-beforeafter thead th { color: var(--color-text-muted); font-weight: 600; }
+.bc-beforeafter tbody th { width: 22%; color: var(--color-text-muted); font-weight: 500; }
+.bc-beforeafter em { color: var(--color-text-subtle); }
+.bc-len {
+  display: inline-block; margin-left: 6px; font-size: 0.72rem;
+  color: var(--color-text-muted); background: #F3F4F6; border-radius: 4px; padding: 0 4px;
+}
+.bc-finding-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* --- edit / delete --- */
 .record-header-row {
   display: flex;

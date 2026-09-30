@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import {
   getVendorById, getCustomerById, getVendorBcPayload, markVendorPushed,
-  getCustomerBcPayload, markCustomerPushed,
+  getCustomerBcPayload, markCustomerPushed, confirmVendorAddress,
   updateVendor, deleteVendor, updateCustomer, deleteCustomer,
 } from '../api'
 import './RecordsPage.css'
@@ -72,6 +72,21 @@ const REQUIRED = { vendor: 'vendor_name', customer: 'company_name' }
 // customer.type is a fixed choice
 const TYPE_OPTIONS = ['Services', 'License']
 
+// Business Central gate findings (docs/ADDRESS_SEGMENTATION_PLAN.md s.7):
+// what each reason code means to a reviewer.
+const BC_REASON_LABELS = {
+  ADDRESS_BC_LENGTH_REBALANCE: 'Address line break moved to fit Business Central',
+  ADDRESS_OVERFLOW: "Address does not fit Business Central's two address lines",
+  FIELD_TOO_LONG: 'Too long for Business Central',
+  INVALID_COUNTRY: 'Country has no Business Central code',
+  INVALID_PIN: 'PIN is not a 6-digit Indian PIN',
+  ADDRESS_INVARIANT_VIOLATION: 'Address check failed',
+}
+const BC_FIELD_LABELS = {
+  address_1: 'Address', address_2: 'Address 2', city: 'City',
+  state: 'State (County)', pin_code: 'PIN (Post Code)', country: 'Country',
+}
+
 function fmtDate(s) {
   if (!s) return '—'
   const d = new Date(s)
@@ -102,6 +117,9 @@ export default function RecordDetailPage() {
   const [bcErr, setBcErr] = useState('')
   const [bcNoInput, setBcNoInput] = useState('')
   const [marking, setMarking] = useState(false)
+  // Open findings from the BC payload gate (409), and the one-click confirm
+  const [bcFindings, setBcFindings] = useState(null)
+  const [confirming, setConfirming] = useState(false)
 
   const editableKeys = useMemo(
     () => cfg.groups.flatMap(([, fields]) => fields.map(([k]) => k)),
@@ -172,13 +190,33 @@ export default function RecordDetailPage() {
 
   function fetchBcPayload() {
     setBcErr('')
+    setBcFindings(null)
     cfg.bcFetch(id)
       .then(setBc)
       .catch(err => {
         if (err.code === 'AUTH_EXPIRED') { navigate('/', { replace: true }); return }
+        const findings = err.body?.detail?.findings
+        if (err.status === 409 && Array.isArray(findings)) {
+          // The record is not ready for BC yet: show what must be fixed.
+          setBcFindings(findings)
+          return
+        }
         setBcErr(err.status === 503
           ? 'Business Central integration is turned off (BC_ENABLED=false).'
           : (err.message || 'Could not build the BC payload.'))
+      })
+  }
+
+  function confirmSplit(finding) {
+    const p = finding.proposal
+    if (!p) return
+    setConfirming(true); setBcErr('')
+    confirmVendorAddress(id, p.address_1, p.address_2)
+      .then(() => { setConfirming(false); loadRecord(); fetchBcPayload() })
+      .catch(err => {
+        setConfirming(false)
+        if (err.code === 'AUTH_EXPIRED') { navigate('/', { replace: true }); return }
+        setBcErr(err.message || 'Could not confirm the address.')
       })
   }
 
@@ -329,13 +367,74 @@ export default function RecordDetailPage() {
                         the No. it returns.
                       </p>
 
-                      {!bc && (
+                      {!bc && !bcFindings && (
                         <button className="btn btn-secondary" onClick={fetchBcPayload}>
                           Get BC payload
                         </button>
                       )}
 
                       {bcErr && <p className="records-error" style={{ marginTop: 12 }}>{bcErr}</p>}
+
+                      {bcFindings && (
+                        <div className="bc-findings">
+                          <p className="bc-findings-title">Not ready for Business Central yet</p>
+                          {bcFindings.map((f, i) => {
+                            const lineSplit = f.before && f.proposal && 'address_1' in f.proposal
+                            const open = f.automation_class === 'BLOCK_SUBMISSION'
+                              || (f.automation_class === 'MANUAL_REVIEW' && !f.confirmed)
+                            return (
+                              <div key={i} className={`bc-finding ${open ? 'is-open' : 'is-done'}`}>
+                                <div className="bc-finding-head">
+                                  <span className="bc-finding-label">
+                                    {BC_REASON_LABELS[f.reason_code] || f.reason_code}
+                                  </span>
+                                  <span className="bc-finding-field">{BC_FIELD_LABELS[f.field] || f.field}</span>
+                                </div>
+                                {f.detail && <p className="bc-help" style={{ margin: '4px 0 8px' }}>{f.detail}</p>}
+
+                                {lineSplit && (
+                                  <table className="bc-beforeafter">
+                                    <thead><tr><th></th><th>Before</th><th>After</th></tr></thead>
+                                    <tbody>
+                                      {['address_1', 'address_2'].map(k => (
+                                        <tr key={k}>
+                                          <th>{BC_FIELD_LABELS[k]}</th>
+                                          <td>{f.before[k] || <em>empty</em>}<span className="bc-len">{(f.before[k] || '').length}</span></td>
+                                          <td>{f.proposal[k] || <em>empty</em>}<span className="bc-len">{(f.proposal[k] || '').length}</span></td>
+                                        </tr>
+                                      ))}
+                                      {(f.before.address_3 || f.before.address_4) && (
+                                        <tr>
+                                          <th>Address 3 / 4</th>
+                                          <td>{[f.before.address_3, f.before.address_4].filter(Boolean).join(', ')}</td>
+                                          <td><em>merged into Address 2</em></td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                )}
+
+                                {open && (
+                                  <div className="bc-finding-actions">
+                                    {lineSplit && (
+                                      <button className="btn btn-primary" disabled={confirming} onClick={() => confirmSplit(f)}>
+                                        {confirming ? 'Confirming…' : 'Confirm new split'}
+                                      </button>
+                                    )}
+                                    <button className="btn btn-secondary" onClick={startEdit}>Edit manually</button>
+                                  </div>
+                                )}
+                                {open && f.proposal === null && (
+                                  <p className="bc-help" style={{ margin: '6px 0 0' }}>
+                                    No automatic fix keeps every word of the address. Nothing is ever cut off:
+                                    edit the lines so they fit, then get the payload again.
+                                  </p>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
 
                       {bc && (
                         <>
