@@ -54,22 +54,47 @@ _FIELD_MAP: dict[str, str] = {
 }
 
 # Vendor attributes joined (in order) into BC's single Address_2 field.
+# Legacy behaviour, used only while BC_PAYLOAD_GATE_ENABLED is off: with the
+# gate on, Address 3/4 are never joined (they would overflow Address 2's
+# 50-character limit -- C-ADR-04); the gate blocks a record that still has
+# them and proposes a lossless re-layout instead.
 _ADDRESS_2_JOIN_FIELDS = ("address_2", "address_3", "address_4")
 
 
 def vendor_to_bc_payload(vendor: Vendor) -> dict:
-    """Build the JSON body for a POST to .../VendorCard."""
+    """Build the JSON body for a POST to .../VendorCard.
+
+    With BC_PAYLOAD_GATE_ENABLED (docs/ADDRESS_SEGMENTATION_PLAN.md step 12)
+    Address_2 is `address_2` alone and Country_Region_Code is the BC code
+    from the target profile (e.g. "India" -> "IN"), never the name. The
+    router only calls this once the gate has passed. Values are never
+    shortened here: an over-length value is the gate's job to block.
+    """
     payload: dict[str, str] = {"No": ""}
+    gate_on = settings.BC_PAYLOAD_GATE_ENABLED
 
     for attr, bc_field in _FIELD_MAP.items():
         value = getattr(vendor, attr, None)
         if value:
             payload[bc_field] = str(value).strip()
 
-    address_2_parts = [
-        str(getattr(vendor, attr, "") or "").strip() for attr in _ADDRESS_2_JOIN_FIELDS
-    ]
-    address_2 = ", ".join(p for p in address_2_parts if p)
+    if gate_on:
+        address_2 = str(getattr(vendor, "address_2", "") or "").strip()
+        country = (getattr(vendor, "country", "") or "").strip()
+        if country:
+            from app.services.bc_target_profile import load_profile
+
+            code = load_profile(settings.BC_TARGET_PROFILE).country_code(country)
+            if code:
+                payload["Country_Region_Code"] = code
+            else:
+                # unmapped: the gate raises INVALID_COUNTRY; never send the name
+                payload.pop("Country_Region_Code", None)
+    else:
+        address_2_parts = [
+            str(getattr(vendor, attr, "") or "").strip() for attr in _ADDRESS_2_JOIN_FIELDS
+        ]
+        address_2 = ", ".join(p for p in address_2_parts if p)
     if address_2:
         payload["Address_2"] = address_2
 
