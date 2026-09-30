@@ -92,6 +92,10 @@ class ResolvedAddress:
     # Never appears inside address_1/address_2 text (country tokens are
     # peeled off before the leftover reaches address_segmenter).
     country: str = "India"
+    # "extracted" when a country token was actually present in the source,
+    # "default" when `country` is only the India fallback. Lets callers apply
+    # extracted-first precedence without re-parsing the string.
+    country_source: str = "default"
     pin_code: str = ""
     confidence: str = _CONF_LOW
     # what each field was resolved from, for review flags / debugging
@@ -433,11 +437,13 @@ def resolve_address_blob(
     segments, country = _drop_trailing_country(_segments(address))
     if not segments:
         out.country = country or "India"
+        out.country_source = "extracted" if country else "default"
         return out
 
     segments, pin = _strip_pin(segments)
     segments, country2 = _drop_trailing_country(segments)
     out.country = country or country2 or "India"
+    out.country_source = "extracted" if (country or country2) else "default"
     out.pin_code = pin
 
     pin_state, pin_district = "", ""

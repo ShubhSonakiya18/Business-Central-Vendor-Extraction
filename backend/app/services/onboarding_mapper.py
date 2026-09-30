@@ -209,6 +209,13 @@ _REVIEW_TARGET.setdefault("ifsc", "bank_details.ifsc_code")
 for _addr_key in _ADDRESS_FIELDS:
     _REVIEW_TARGET.setdefault(_addr_key, "billing_address")
 
+# Reason codes of the vendor BC address representation layer that concern
+# the Address / Address 2 line split only (docs/ADDRESS_SEGMENTATION_PLAN.md
+# section 7) -- see _fields_needing_review for why they are skipped here.
+_VENDOR_ADDRESS_LINE_CODES = frozenset({
+    "ADDRESS_BC_LENGTH_REBALANCE", "ADDRESS_OVERFLOW",
+})
+
 
 def _value(result: ExtractionResult, key: str) -> str:
     field = result.fields.get(key)
@@ -350,6 +357,12 @@ def _fields_needing_review(result: ExtractionResult) -> list[str]:
     """
     out: list[str] = []
     for item in result.needs_review:
+        if item.get("reason_code") in _VENDOR_ADDRESS_LINE_CODES:
+            # BC Address/Address 2 line-width findings from the vendor address
+            # layer. They do not apply here: this form joins address_1..4 into
+            # a single billing_address, and the layer's rebalance/backfill never
+            # changes that joined text (same fragments, same order).
+            continue
         target = _REVIEW_TARGET.get(item.get("field", ""))
         if target and target not in out:
             out.append(target)

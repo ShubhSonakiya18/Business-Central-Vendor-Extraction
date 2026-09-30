@@ -351,6 +351,12 @@ class FieldResult:
     consistency: str = "not_checked"           # consistent | inconsistent | single_source
     alternatives: list[dict] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # Structured audit trail for automatic transformations of this value
+    # (docs/ADDRESS_SEGMENTATION_PLAN.md §8). Currently written only for
+    # address_1 by the BC address representation layer: the semantic layout
+    # once, then one entry per transformation (backfill / BC rebalance), in
+    # order. `notes` keeps its one-line human summaries alongside.
+    provenance: list[dict] = field(default_factory=list)
 
     @property
     def is_present(self) -> bool:
@@ -370,6 +376,7 @@ class FieldResult:
             "consistency": self.consistency,
             "alternatives": self.alternatives,
             "notes": self.notes,
+            "provenance": self.provenance,
         }
 
 
