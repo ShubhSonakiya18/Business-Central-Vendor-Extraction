@@ -21,6 +21,7 @@ tests/test_bc_target_profile.py's grep test (extended to this module).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from enum import Enum
 
@@ -322,7 +323,7 @@ def represent_address(
     limits: AddressLimits,
     *,
     profile_name: str = "",
-    geography_values: frozenset[str] = frozenset(),
+    geography: Mapping[str, str] | None = None,
     mode: str = "apply",
 ) -> AddressDecision:
     """Runs steps 5-9 (plan §2) and returns the full decision.
@@ -336,9 +337,9 @@ def represent_address(
     applying it to the stored record itself (the gate's caller is
     responsible for not persisting `decision.final` when mode="check").
 
-    `geography_values` is the set of casefolded extracted city/state/
-    country/PIN values (and their aliases) -- used only for the BC-07 guard
-    in step 8; never mutated, never consulted to move a fragment.
+    `geography` is the extracted {city, state, country, pin_code} -- used
+    only for the BC-07 guard in step 8; never mutated, never consulted to
+    move a fragment (plan §4 "Geography safety").
     """
     transforms: list[AddressTransform] = []
     findings: list[AddressFinding] = []
@@ -411,7 +412,7 @@ def represent_address(
     invariant_violations: list[str] = []
     if fit.status != FitStatus.OVERFLOW:
         invariant_violations += validate_final(fragment_texts, final_layout.boundary, limits)
-    invariant_violations += _check_geography_leak(final_layout, geography_values)
+    invariant_violations += _check_geography_leak(final_layout, geography or {})
     invariant_violations += _check_semantic_role_preserved(sem, final_layout)
     if invariant_violations:
         findings.append(AddressFinding(
@@ -451,15 +452,32 @@ def _move(
     )
 
 
-def _check_geography_leak(layout: AddressLayout, geography_values: frozenset[str]) -> list[str]:
-    """BC-07 (plan §8/§10): no A1/A2 fragment may equal an extracted
-    geography value or alias. Structural prevention already makes this
-    nearly impossible (fragments come from the post-geography-peel list --
-    see the module docstring); this is the defence-in-depth check."""
-    if not geography_values:
+def _check_geography_leak(layout: AddressLayout, geography: Mapping[str, str]) -> list[str]:
+    """BC-07 (plan §4/§10): no A1/A2 fragment may equal an EXTRACTED
+    geography value (city / state / country / pin_code) or an alias of one.
+
+    Structural prevention already makes this nearly impossible (fragments
+    come from the post-geography-peel list); this is defence in depth. It
+    deliberately compares against the values the resolver actually
+    extracted, not against every gazetteer name: a district that was NOT
+    chosen as the city (e.g. "Tikamgarh" when the city is "Niwari") is a
+    legitimate address fragment. Aliases are matched through the same
+    canonical_city/canonical_state lookups the resolver uses, so
+    "Sahibzada Ajit Singh Nagar" counts as the city "S.A.S Nagar"."""
+    from .address_lookups import canonical_city, canonical_state
+
+    city = (geography.get("city") or "").strip()
+    state = (geography.get("state") or "").strip()
+    plain = {v.strip().casefold() for v in geography.values() if v and v.strip()}
+    if not plain:
         return []
     for f in layout.fragments:
-        if f.text.strip().casefold() in geography_values:
+        text = f.text.strip()
+        if text.casefold() in plain:
+            return ["BC-07"]
+        if city and (canonical_city(text) or "").casefold() == city.casefold():
+            return ["BC-07"]
+        if state and (canonical_state(text) or "").casefold() == state.casefold():
             return ["BC-07"]
     return []
 

@@ -96,6 +96,15 @@ class ResolvedAddress:
     confidence: str = _CONF_LOW
     # what each field was resolved from, for review flags / debugging
     notes: list[str] = field(default_factory=list)
+    # BC address representation layer output (docs/ADDRESS_SEGMENTATION_PLAN.md
+    # §8). Populated only on the multiline path with the layer enabled;
+    # otherwise None / []. Not part of as_dict()/as_dict_full() -- those
+    # shapes are unchanged.
+    #   representation: {"semantic": {...}, "transforms": [...], "status": ...}
+    #   findings: [{"reason_code", "automation_class", "detail"}] -- only the
+    #     MANUAL_REVIEW / BLOCK_SUBMISSION ones; AUTO_FIX lives in transforms.
+    representation: dict | None = None
+    findings: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, str]:
         """The ORIGINAL 5-key shape, unchanged since before address_3/4
@@ -399,7 +408,9 @@ def _pick_city(
     return rest, _titlecase_city(city_token), False
 
 
-def resolve_address_blob(address: str, *, multiline: bool = False) -> ResolvedAddress:
+def resolve_address_blob(
+    address: str, *, multiline: bool = False, bc_layer: bool | None = None,
+) -> ResolvedAddress:
     """Segment one combined address string. See module docstring.
 
     `multiline` (default False, opt-in): when True, the leftover after the
@@ -410,6 +421,13 @@ def resolve_address_blob(address: str, *, multiline: bool = False) -> ResolvedAd
     path and every other existing caller keep `multiline=False` so their
     output is byte-identical to before this parameter existed --
     `split_trailing_location()` below always calls with the default.
+
+    `bc_layer` (multiline path only): run the BC address representation
+    layer (docs/ADDRESS_SEGMENTATION_PLAN.md steps 5-9) instead of the plain
+    string backfill -- A1/A2 then come from `address_representation`, with
+    provenance on `.representation` and review/block findings on
+    `.findings`. None (default) means "use settings.BC_ADDRESS_LAYER_ENABLED",
+    which is False, so default behaviour is unchanged.
     """
     out = ResolvedAddress()
     segments, country = _drop_trailing_country(_segments(address))
@@ -457,8 +475,17 @@ def resolve_address_blob(address: str, *, multiline: bool = False) -> ResolvedAd
         from .address_segmenter import _LEVEL_ORDER, segment_leftover
 
         seg_result = segment_leftover(segments, pin=pin, district=pin_district)
-        lines = (seg_result.lines + ["", "", "", ""])[:4]
-        out.address_1, out.address_2, out.address_3, out.address_4 = lines
+        if _bc_layer_on(bc_layer):
+            # Steps 5-9 (presentation fallback + BC representation). Replaces
+            # the positional lines AND the string-level backfill below.
+            decision = _represent(seg_result, out)
+            out.address_1, out.address_2 = decision.address_1, decision.address_2
+            out.address_3 = out.address_4 = ""
+            out.representation = representation_to_dict(decision)
+            out.findings = [f.to_dict() for f in decision.findings]
+        else:
+            lines = (seg_result.lines + ["", "", "", ""])[:4]
+            out.address_1, out.address_2, out.address_3, out.address_4 = lines
         if seg_result.notes:
             out.notes.append(f"segmenter: {'; '.join(seg_result.notes)}")
         # Overall confidence is the WEAKER of the two independent judgements
@@ -473,9 +500,69 @@ def resolve_address_blob(address: str, *, multiline: bool = False) -> ResolvedAd
         out.address_1 = ", ".join(segments).strip(" ,")
         out.confidence = resolver_confidence
 
-    out.address_1, out.address_2 = _fallback_populate_address_1(out.address_1, out.address_2)
+    if out.representation is None:
+        # Flag-off (and non-multiline) path: unchanged string-level backfill.
+        out.address_1, out.address_2 = _fallback_populate_address_1(out.address_1, out.address_2)
 
     return out
+
+
+def _bc_layer_on(bc_layer: bool | None) -> bool:
+    """Explicit argument wins; otherwise the BC_ADDRESS_LAYER_ENABLED
+    setting (default False). Read lazily so importing this module never
+    requires the app settings to be loadable."""
+    if bc_layer is not None:
+        return bc_layer
+    from app.config.config import settings
+
+    return settings.BC_ADDRESS_LAYER_ENABLED
+
+
+def _represent(seg_result, out: ResolvedAddress):
+    """Run address_representation steps 5-9 on the segmenter's result, using
+    the configured BC target profile's limits and the geography this
+    resolver already extracted (for the BC-07 guard only)."""
+    from app.config.config import settings
+    from app.services.bc_target_profile import load_profile
+
+    from .address_representation import layout_from_segmented, represent_address
+
+    profile = load_profile(settings.BC_TARGET_PROFILE)
+    return represent_address(
+        layout_from_segmented(seg_result),
+        profile.address_limits(),
+        profile_name=profile.name,
+        geography={"city": out.city, "state": out.state,
+                   "country": out.country, "pin_code": out.pin_code},
+    )
+
+
+def representation_to_dict(decision) -> dict:
+    """Serializable provenance for one AddressDecision (plan §8): the
+    semantic layout once, then one entry per transformation, in order."""
+    sem = decision.semantic
+    return {
+        "semantic": {
+            "layer": "semantic",
+            "semantic_boundary": sem.semantic_boundary,
+            "fragments": [
+                {"index": f.index, "text": f.text, "tier": f.tier,
+                 "tier_role": f.tier_role, "semantic_role": f.semantic_role}
+                for f in sem.fragments
+            ],
+            "semantic_address_1": sem.semantic_address_1,
+            "semantic_address_2": sem.semantic_address_2,
+        },
+        "transforms": [t.to_dict() for t in decision.transforms],
+        "final_fragments": [
+            {"index": f.index, "semantic_role": f.semantic_role,
+             "final_bc_field": f.final_bc_field, "moved_by": f.moved_by}
+            for f in decision.final.fragments
+        ],
+        "final_address_1": decision.address_1,
+        "final_address_2": decision.address_2,
+        "status": decision.status.value,
+    }
 
 
 def _fallback_populate_address_1(address_1: str, address_2: str) -> tuple[str, str]:
