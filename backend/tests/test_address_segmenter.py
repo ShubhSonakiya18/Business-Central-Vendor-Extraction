@@ -1,7 +1,7 @@
 """address_segmenter.py -- classification, boundary injection, grouping,
 and the corpus/invariant sweep.
 
-The corpus (app/eval/address_line_cases.yaml, 61 synthetic cases) is scored
+The corpus (app/eval/address_line_cases.yaml, 74 synthetic cases) is scored
 here as exact-match PLUS a set of invariants that must hold on EVERY case,
 not just the ones that happen to be exact-match-correct -- see TestInvariants.
 Exact-match failures point at a specific wrong classification/threshold;
@@ -259,6 +259,40 @@ class TestGrouping:
         r = segment_leftover([])
         assert r.lines == []
         assert r.confidence == "low"
+
+
+class TestSemanticBoundaryField:
+    """SegmentedAddress.semantic_boundary / .fallback_applied (additive
+    fields for the BC address representation layer -- see
+    docs/ADDRESS_SEGMENTATION_PLAN.md §2/§4/§12). Purely observational: they
+    must reflect what _split_by_role already decided, without changing any
+    existing output (lines/groups/confidence/notes)."""
+
+    def test_normal_premise_run_reports_its_length(self):
+        r = segment_leftover(["UNIT 302", "BLOCK B", "SRIJAN PARK"])
+        assert r.semantic_boundary == 2
+        assert r.fallback_applied is False
+
+    def test_no_premise_at_all_boundary_is_zero_no_fallback(self):
+        r = segment_leftover(["SILVER OAK", "VILL- SAKINAKA"])
+        assert r.semantic_boundary == 0
+        assert r.fallback_applied is False
+        assert r.lines[0] == ""  # Address 1 stayed empty -- no fallback fired
+
+    def test_leading_thoroughfare_fallback_boundary_is_zero_not_one(self):
+        """When the thoroughfare fallback fires, semantic_boundary is 0 (no
+        ADDRESS_1-role run existed) even though the FINAL group boundary
+        (len(groups[0])) is 1. These two numbers are deliberately different
+        -- semantic_boundary is the pre-fallback truth."""
+        r = segment_leftover(["MG ROAD", "SECTOR 12", "PHASE 3"])
+        assert r.fallback_applied is True
+        assert r.semantic_boundary == 0
+        assert len(r.groups[0]) == 1  # the fallback's own result
+
+    def test_empty_leftover_boundary_is_zero(self):
+        r = segment_leftover([])
+        assert r.semantic_boundary == 0
+        assert r.fallback_applied is False
 
 
 class TestTailSplitConservatism:

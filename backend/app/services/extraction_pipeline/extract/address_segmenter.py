@@ -182,6 +182,26 @@ class SegmentedAddress:
     confidence: str = "low"
     score: float = 0.0
     notes: list[str] = _dc_field(default_factory=list)
+    # Additive fields for the BC address representation layer (see
+    # docs/ADDRESS_SEGMENTATION_PLAN.md §2/§4/§12). Neither field changes
+    # this module's own output -- `_split_by_role` and the rest of
+    # `segment_leftover` are untouched; these two fields only EXPOSE facts
+    # `_split_by_role` already computed, so `address_representation.py` can
+    # build a SemanticLayout without re-deriving them.
+    #
+    # semantic_boundary: the boundary `_split_by_role` found BEFORE any
+    # no-premise fallback ran -- i.e. the length of the initial contiguous
+    # ADDRESS_1-role run. This is 0 whenever `fallback_applied` is True
+    # (both the thoroughfare and the "no boundary at all" cases start from
+    # boundary 0 -- see _split_by_role's docstring). It is NOT the same as
+    # `len(groups[0])`, which already reflects _split_by_role's own
+    # thoroughfare fallback.
+    semantic_boundary: int = 0
+    # fallback_applied: True when _split_by_role's OWN thoroughfare fallback
+    # fired (fragment 0 promoted to Address 1 because no ADDRESS_1-role run
+    # existed at all). This is the `leading_thoroughfare` variant of the
+    # plan's step-5 presentation fallback -- see address_representation.py.
+    fallback_applied: bool = False
 
     def get(self, n: int) -> str:
         """1-based line accessor (`get(1)` == address_1); '' past the end."""
@@ -1087,7 +1107,12 @@ def segment_leftover(segments: list[str], *, pin: str = "", district: str = "") 
         lines = [a1_text] if a1_text else []
     else:
         lines = [a1_text, a2_text]
+    # See SegmentedAddress.semantic_boundary's docstring: 0 whenever
+    # _split_by_role's own thoroughfare fallback fired, otherwise the length
+    # of the initial contiguous ADDRESS_1-role run it found.
+    semantic_boundary = 0 if fallback_applied else len(a1_fragments)
     return SegmentedAddress(
         lines=lines, groups=groups, fragments=fragments,
         confidence=level, score=round(base_score, 3), notes=notes,
+        semantic_boundary=semantic_boundary, fallback_applied=fallback_applied,
     )
