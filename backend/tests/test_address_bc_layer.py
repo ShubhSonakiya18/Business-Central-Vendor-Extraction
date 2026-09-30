@@ -271,3 +271,83 @@ class TestGeographyGuard:
     def test_no_geography_given_means_no_check(self):
         d = represent_address(_layout("Plot 5", "Howrah", boundary=1), LIMITS)
         assert d.findings == ()
+
+
+# ---------------------------------------------------------------------------
+# bc_expect corpus blocks (plan section 11.3)
+# ---------------------------------------------------------------------------
+
+def _line_cases():
+    doc = yaml.safe_load((_EVAL_DIR / "address_line_cases.yaml").read_text(encoding="utf-8"))
+    return doc["cases"]
+
+
+class TestLineCasesBcExpect:
+    """address_line_cases.yaml is segmenter-level input (`segments`). Its
+    `expect` blocks stay semantic and are still asserted by
+    test_address_segmenter.py; the three cases whose semantic Address 2
+    exceeds BC's limit also carry a `bc_expect` block, checked here."""
+
+    def test_exactly_the_three_over_limit_cases_have_bc_expect(self):
+        with_bc = [c["id"] for c in _line_cases() if "bc_expect" in c]
+        assert sorted(with_bc) == sorted([
+            "degenerate_long_address_many_fragments",
+            "localities_worked_example",
+            "bc_floor_block_park_localities",
+        ])
+
+    @pytest.mark.parametrize("case", _line_cases(), ids=[c["id"] for c in _line_cases()])
+    def test_bc_representation(self, case):
+        from app.services.bc_target_profile import load_profile
+        from app.services.extraction_pipeline.extract.address_representation import (
+            layout_from_segmented,
+        )
+        from app.services.extraction_pipeline.extract.address_segmenter import segment_leftover
+
+        limits = load_profile("bc22_in_vendorcard").address_limits()
+        decision = represent_address(layout_from_segmented(segment_leftover(case["segments"])), limits)
+        want = case.get("bc_expect")
+        if want is None:
+            # no BC change: the final lines equal the semantic expectation
+            # after the step-5 backfill, and nothing needs review
+            assert decision.status.value in ("AUTO_PASS", "AUTO_FIX"), case["id"]
+            assert not decision.findings
+        else:
+            assert decision.address_1 == want["address_1"]
+            assert decision.address_2 == want["address_2"]
+            assert decision.status.value == want["status"]
+            assert sorted(f.reason_code for f in decision.findings) == sorted(want["reason_codes"])
+
+
+class TestEvalScorerCatchesBcMismatch:
+    """The eval tool's bc scoring must actually fail on a wrong result."""
+
+    def test_wrong_bc_lines_reported(self):
+        from app.eval.eval_address import _score_bc
+
+        case = {"expect": {"address_1": "A", "address_2": "B"},
+                "bc_expect": {"address_1": "A, B", "address_2": "",
+                              "status": "MANUAL_REVIEW",
+                              "reason_codes": ["ADDRESS_BC_LENGTH_REBALANCE"]}}
+        got = {"address_1": "A", "address_2": "B", "status": "AUTO_PASS", "reason_codes": []}
+        problems = _score_bc(got, case)
+        assert any("address_1" in p for p in problems)
+        assert any("status" in p for p in problems)
+        assert any("reason_codes" in p for p in problems)
+
+    def test_unexpected_bc_change_reported_when_no_bc_expect(self):
+        from app.eval.eval_address import _score_bc
+
+        case = {"expect": {"address_1": "A", "address_2": "B"}}
+        got = {"address_1": "A, B", "address_2": "", "status": "MANUAL_REVIEW",
+               "reason_codes": ["ADDRESS_BC_LENGTH_REBALANCE"]}
+        problems = _score_bc(got, case)
+        assert any("must be unchanged" in p for p in problems)
+        assert any("no bc_expect" in p for p in problems)
+
+    def test_matching_result_has_no_problems(self):
+        from app.eval.eval_address import _score_bc
+
+        case = {"expect": {"address_1": "A", "address_2": "B"}}
+        got = {"address_1": "A", "address_2": "B", "status": "AUTO_PASS", "reason_codes": []}
+        assert _score_bc(got, case) == []

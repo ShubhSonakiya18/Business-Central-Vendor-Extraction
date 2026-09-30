@@ -147,6 +147,13 @@ cases:
       city: "Pune"
       state: "Maharashtra"
       pin_code: ""
+    bc_expect:
+      # BC representation (docs/ADDRESS_SEGMENTATION_PLAN.md s.6): semantic A2 exceeds
+      # BC_ADDRESS_2_MAX_LENGTH, so the smallest whole-fragment boundary shift applies.
+      address_1: "PLOT NO. 47, INDUSTRIAL AREA PHASE II"
+      address_2: "BUILDING B, GROUND FLOOR, CHAKAN"
+      status: MANUAL_REVIEW
+      reason_codes: [ADDRESS_BC_LENGTH_REBALANCE]
 
   - id: vl03_highway_and_town
     note: >-

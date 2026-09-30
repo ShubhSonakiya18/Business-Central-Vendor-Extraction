@@ -365,6 +365,13 @@ cases:
     segments: ["FLAT 9", "SILVER OAK COMPLEX", "MG ROAD",
                "NEAR CITY HOSPITAL", "KORAMANGALA", "INDIRANAGAR"]
     expect: {address_1: "FLAT 9", address_2: "SILVER OAK COMPLEX, MG ROAD, NEAR CITY HOSPITAL, KORAMANGALA, INDIRANAGAR", address_3: "", address_4: ""}
+    bc_expect:
+      # BC representation (docs/ADDRESS_SEGMENTATION_PLAN.md s.6): semantic A2 exceeds
+      # BC_ADDRESS_2_MAX_LENGTH, so the smallest whole-fragment boundary shift applies.
+      address_1: "FLAT 9, SILVER OAK COMPLEX, MG ROAD"
+      address_2: "NEAR CITY HOSPITAL, KORAMANGALA, INDIRANAGAR"
+      status: MANUAL_REVIEW
+      reason_codes: [ADDRESS_BC_LENGTH_REBALANCE]
 
   - id: degenerate_repeated_locality
     note: >-
@@ -442,6 +449,13 @@ cases:
       address_2: "SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY, CHANDIBAGAN, ANDUL, NATIBPUR"
       address_3: ""
       address_4: ""
+    bc_expect:
+      # BC representation (docs/ADDRESS_SEGMENTATION_PLAN.md s.6): semantic A2 exceeds
+      # BC_ADDRESS_2_MAX_LENGTH, so the smallest whole-fragment boundary shift applies.
+      address_1: "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK"
+      address_2: "MOHIARY, CHANDIBAGAN, ANDUL, NATIBPUR"
+      status: MANUAL_REVIEW
+      reason_codes: [ADDRESS_BC_LENGTH_REBALANCE]
 
   - id: localities_village_po_bypasses_threshold
     note: >-
@@ -503,6 +517,13 @@ cases:
       address_2: "SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur"
       address_3: ""
       address_4: ""
+    bc_expect:
+      # BC representation (docs/ADDRESS_SEGMENTATION_PLAN.md s.6): semantic A2 exceeds
+      # BC_ADDRESS_2_MAX_LENGTH, so the smallest whole-fragment boundary shift applies.
+      address_1: "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK"
+      address_2: "MOHIARY CHANDIBAGAN, ANDUL, Natibpur"
+      status: MANUAL_REVIEW
+      reason_codes: [ADDRESS_BC_LENGTH_REBALANCE]
 
   - id: bc_no_premise_fallback_road_first
     note: >-
