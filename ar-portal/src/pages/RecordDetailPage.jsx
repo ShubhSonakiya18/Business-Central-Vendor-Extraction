@@ -193,7 +193,8 @@ export default function RecordDetailPage() {
       { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `${kind}_${id}_bc.json`
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    a.download = `${kind}_${id}_bc_${timestamp}.json`
     a.click()
     URL.revokeObjectURL(a.href)
   }
