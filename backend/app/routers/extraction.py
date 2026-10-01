@@ -142,16 +142,45 @@ def _run_as_json(run_id: str):
     extraction into another system rarely wants the per-field provenance
     that `fields` carries alongside each value, but both are here so the
     confidence/source of any single value can still be inspected.
+
+    Each entry in `fields` also gets `excel_value` and `excel_mismatch` when
+    an Excel form was uploaded alongside the PDFs: `excel_value` is exactly
+    what the vendor filled into that Excel's mapped cell (captured before it
+    gets overwritten -- see extraction.fill_and_verify), and `excel_mismatch`
+    is True only when BOTH our OCR value and the vendor's Excel value are
+    present and, once normalised, disagree. A field with nothing on one side
+    (never printed on the PDF, or the vendor left the Excel cell blank) is
+    never flagged as a mismatch -- there is nothing to disagree about.
     """
+    from app.services.extraction_pipeline.excel.verifier import _normalize
+
     run = run_state.load(run_id)
     if not run:
         return JSONResponse({"error": "unknown run_id", "run_id": run_id}, status_code=404)
 
     fields = run.get("fields", {})
+    excel_uploaded = bool(run.get("excel_uploaded"))
+    original_excel_values = run.get("original_excel_values") or {}
+
+    if excel_uploaded:
+        fields = {
+            name: {
+                **field,
+                "excel_value": original_excel_values.get(name),
+                "excel_mismatch": bool(
+                    field.get("value")
+                    and original_excel_values.get(name)
+                    and _normalize(field.get("value")) != _normalize(original_excel_values.get(name))
+                ),
+            }
+            for name, field in fields.items()
+        }
+
     return {
         "run_id": run_id,
         "values": {name: field.get("value") for name, field in fields.items()},
         "fields": fields,
+        "excel_uploaded": excel_uploaded,
         "needs_review": run.get("needs_review"),
         "documents": run.get("documents"),
         "summary": run.get("summary"),

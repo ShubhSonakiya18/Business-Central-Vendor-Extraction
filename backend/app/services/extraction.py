@@ -163,12 +163,21 @@ def fill_and_verify(
     mapping: str,
     sheet_names: list[str],
     available_sheets: list[str],
-) -> tuple[list[dict], dict, Path]:
+) -> tuple[list[dict], dict, Path, dict[str, str]]:
     """Fill the workbook, then read it back and compare against `canonical`.
 
-    The comparison is a write-integrity check, not an accuracy one: both sides
-    come from the same extraction, so a misread value passes. Accuracy is
-    eval/eval_extraction.py's job.
+    The write-integrity report (`report`/`verification`) compares OUR OWN
+    output against itself -- both sides come from the same extraction, so a
+    misread value passes; it catches a write/read-back bug, not an OCR
+    accuracy problem (that is eval/eval_extraction.py's job).
+
+    Separately, `original_excel_values` captures what the VENDOR actually
+    filled into the uploaded workbook, read BEFORE `mapper.fill()` overwrites
+    those same mapped cells with our extracted values below. This is the
+    only point in the pipeline where the vendor's original entries still
+    exist on disk -- once `fill()` runs, they are gone. Returned so the
+    caller can put a genuine PDF-vs-Excel comparison in front of a reviewer,
+    instead of comparing our output against itself.
     """
     from app.services.extraction_pipeline.excel.excel_mapper import ExcelMapper
     from app.services.extraction_pipeline.excel.verifier import summarize, verify_excel
@@ -176,6 +185,15 @@ def fill_and_verify(
     try:
         mapper = ExcelMapper.load(mapping)
         xlsx_path = run_dir / "vendor_filled.xlsx"
+
+        # Capture the vendor's own values first -- fill() below overwrites
+        # every mapped cell unconditionally, so this is a one-time read.
+        # Merged across sheets: a later sheet's value for the same field
+        # (there shouldn't normally be one) wins, matching fill()'s own
+        # last-sheet-wins behaviour when re-reading its own prior output.
+        original_excel_values: dict[str, str] = {}
+        for sheet in (sheet_names or [None]):
+            original_excel_values.update(mapper.read_values(str(template), sheet_name=sheet))
 
         # Each selected tab is filled in turn, re-reading the previous output
         # so every sheet ends up in one workbook.
@@ -197,7 +215,7 @@ def fill_and_verify(
         (run_dir / "verification_report.json").write_text(
             json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-        return report, summarize(report), xlsx_path
+        return report, summarize(report), xlsx_path, original_excel_values
     except Exception as exc:
         # Extraction already succeeded and cost real time; losing it to an Excel
         # problem would be the wrong trade. Report it and keep the JSON.
@@ -235,9 +253,14 @@ def process(
     }
     report: list[dict] = []
     verification = None
+    # {field: value-as-originally-filled-in-by-the-vendor}, read from the
+    # UPLOADED Excel before fill_and_verify() overwrites those cells with
+    # our own extracted values. Empty/absent when no Excel was uploaded, or
+    # a field simply wasn't filled in on it -- see excel_mapper.read_values.
+    original_excel_values: dict[str, str] = {}
 
     if template is not None:
-        report, verification, xlsx_path = fill_and_verify(
+        report, verification, xlsx_path, original_excel_values = fill_and_verify(
             canonical, template, run_dir, mapping, sheet_names, available_sheets
         )
         files["xlsx"] = str(xlsx_path)
@@ -251,6 +274,8 @@ def process(
         "summary": summary,
         "report": report,
         "verification": verification,
+        "excel_uploaded": template is not None,
+        "original_excel_values": original_excel_values,
         "files": files,
         "timings": {
             "load": round(load_seconds, 1),

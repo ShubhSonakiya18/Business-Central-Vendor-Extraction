@@ -28,27 +28,45 @@ const DownloadIcon = () => (
 /**
  * Normalise the backend `fields` map into rows the comparison table can render.
  *
- * The backend shape per field:
- *   { value, confidence, source, flagged }
- *   source: "pdf" | "excel" | "merged" | "single_source"
+ * The backend shape per field (see backend/app/services/extraction_pipeline/
+ * models.py FieldResult.to_dict, extended in routers/extraction.py
+ * _run_as_json):
+ *   { value, confidence, notes, ...,
+ *     excel_value: string|null,     -- only present when excelUploaded
+ *     excel_mismatch: boolean }     -- true only when BOTH sides have a
+ *                                      value and they disagree
  *
- * needs_review: string[] — field names flagged for human review (mismatches or
- *   low confidence).
+ * "Extracted Value" is always what OCR read off the uploaded PDF/DOCX/image
+ * documents. "Excel / Template Value" is exactly what the vendor filled into
+ * the uploaded Excel form's matching cell -- read BEFORE that cell gets
+ * overwritten with the extracted value while building the filled workbook
+ * (see extraction.py fill_and_verify) -- so the two columns are genuinely
+ * independent sources, not the same value shown twice.
+ *
+ * needs_review: string[] — field names the extraction pipeline itself
+ * flagged (low OCR confidence, failed validation, etc). This is separate
+ * from an excel_mismatch and both can fire independently on the same row.
  */
-function buildRows(fields, needsReview) {
+function buildRows(fields, needsReview, excelUploaded) {
   const reviewSet = new Set(needsReview ?? [])
 
   return Object.entries(fields).map(([label, field]) => {
-    const isMismatch = reviewSet.has(label)
-    const isSingle   = field.source === 'single_source'
+    const pdfValue = field.value ?? ''
+    // No Excel was uploaded for this run at all -- there is nothing to
+    // compare, not merely a missing value, so the column reads
+    // "Not in template" rather than a false mismatch/blank.
+    const isSingle = !excelUploaded
 
-    // The backend merges PDF + Excel into one value. Where both exist it picks
-    // the higher-confidence one and flags mismatches. We surface the merged
-    // value in both columns unless there is only a single source.
-    const pdfValue   = field.value ?? ''
-    const excelValue = isSingle ? null : (field.excel_value ?? field.value ?? '')
+    const excelValue     = isSingle ? null : (field.excel_value ?? '')
+    const excelMismatch  = !isSingle && Boolean(field.excel_mismatch)
+    const needsReviewFlag = reviewSet.has(label)
+    const isMismatch     = excelMismatch || needsReviewFlag
 
-    return { label, pdfValue, excelValue, isMismatch, isSingle, confidence: field.confidence }
+    return {
+      label, pdfValue, excelValue, isSingle,
+      excelMismatch, needsReviewFlag, isMismatch,
+      confidence: field.confidence,
+    }
   })
 }
 
@@ -81,7 +99,8 @@ export default function VendorComparePage() {
     )
   }
 
-  const rows          = buildRows(result.fields ?? {}, result.needs_review ?? [])
+  const excelUploaded = Boolean(result.excel_uploaded)
+  const rows          = buildRows(result.fields ?? {}, result.needs_review ?? [], excelUploaded)
   const mismatchCount = rows.filter(r => r.isMismatch).length
   const hasXlsx       = result.files?.includes('xlsx')
 
@@ -144,15 +163,18 @@ export default function VendorComparePage() {
                 {rows.map(row => (
                   <tr key={row.label} className={row.isMismatch ? 'row-mismatch' : ''}>
                     <td>{row.label}</td>
-                    <td className={row.isMismatch ? 'val-mismatch' : ''}>{row.pdfValue}</td>
+                    <td className={row.excelMismatch ? 'val-mismatch' : ''}>{row.pdfValue}</td>
                     <td>
                       {row.isSingle
                         ? <span className="val-absent">Not in template</span>
-                        : <span className={row.isMismatch ? 'val-mismatch' : ''}>{row.excelValue}</span>}
+                        : (row.excelValue
+                            ? <span className={row.excelMismatch ? 'val-mismatch' : ''}>{row.excelValue}</span>
+                            : <span className="val-absent">Not filled in Excel</span>)}
                     </td>
                     <td>
-                      {row.isSingle    && <span className="badge badge--neutral">Single source</span>}
-                      {row.isMismatch  && <span className="badge badge--warning">Review</span>}
+                      {row.isSingle && <span className="badge badge--neutral">Single source</span>}
+                      {row.excelMismatch && <span className="badge badge--warning">PDF ≠ Excel</span>}
+                      {!row.excelMismatch && row.needsReviewFlag && <span className="badge badge--warning">Review</span>}
                       {!row.isSingle && !row.isMismatch && <span className="badge badge--success">Match</span>}
                     </td>
                   </tr>
