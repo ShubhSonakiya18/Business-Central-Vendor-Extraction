@@ -1,0 +1,42 @@
+{
+  "shapes": {
+    "partition": [
+      100000,
+      14
+    ],
+    "patterns": [
+      100000,
+      9
+    ]
+  },
+  "same_address_text_across_files": {
+    "ids_in_both": 100000,
+    "text_mismatches": 0
+  },
+  "duplicate_address_text": {
+    "partition": {
+      "unique_addresses": 100000,
+      "rows_with_a_duplicate": 0
+    },
+    "patterns": {
+      "unique_addresses": 100000,
+      "rows_with_a_duplicate": 0
+    }
+  },
+  "partition_valid_counts": {
+    "True": 100000
+  },
+  "blank_fields": {
+    "address_1": 0,
+    "address_2": 0
+  },
+  "reconstruction": {
+    "exact_comma_space": 100000,
+    "any_separator": 100000,
+    "total": 100000
+  },
+  "separator_sample": {
+    ", ": 5000
+  },
+  "split_index_out_of_range": 0
+}

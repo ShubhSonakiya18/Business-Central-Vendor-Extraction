@@ -1,0 +1,84 @@
+# Business Central 22 (India localization) VendorCard target profile.
+#
+# This is the constraint registry for the BC address representation layer
+# (docs/ADDRESS_SEGMENTATION_PLAN.md §9), mirroring docs/BC_VENDOR_CONSTRAINT_REGISTRY.md
+# by constraint ID. No BC field-length literal should appear anywhere in
+# backend/app/ code outside of this file -- see test_bc_target_profile.py's
+# grep test.
+#
+# Values marked "TENANT VERIFICATION REQUIRED" are the plan's open questions
+# (§16) -- they are our best-documented guess, not a confirmed tenant fact.
+
+target:
+  product: BC
+  version: "22 (build: TENANT VERIFICATION REQUIRED, Q20)"
+  localization: IN
+  entity: VendorCard
+  path: odata_v4
+
+# Joiner used when concatenating fragments back into one address line.
+separator: ", "
+
+constraints:
+  BC_ADDRESS_1_MAX_LENGTH:
+    bc_field: Address
+    portal: address_1
+    value: 100
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-03
+
+  BC_ADDRESS_2_MAX_LENGTH:
+    bc_field: Address_2
+    portal: address_2
+    value: 50
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-04
+
+  BC_CITY_MAX_LENGTH:
+    bc_field: City
+    portal: city
+    value: 30
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-05
+
+  BC_COUNTY_MAX_LENGTH:
+    bc_field: County
+    portal: state
+    value: 30
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-06
+
+  BC_POST_CODE_MAX_LENGTH:
+    bc_field: Post_Code
+    portal: pin_code
+    value: 20
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-07
+
+  BC_COUNTRY_CODE_MAX_LENGTH:
+    bc_field: Country_Region_Code
+    portal: country
+    value: 10
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-08
+
+  BC_NO_ADDRESS_3_4:
+    portal: [address_3, address_4]
+    value: empty
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-ADR-04
+
+# India country name -> BC Country/Region Code. TENANT VERIFICATION REQUIRED
+# (Q4): whether the tenant's code is "IN" or "INDIA" is not yet confirmed.
+country_codes:
+  India: IN
+
+# State (County) abbreviations for names that exceed BC_COUNTY_MAX_LENGTH
+# (currently only "Dadra and Nagar Haveli and Daman and Diu", 40 chars).
+# Left empty until the company decides an abbreviation (plan §16, Q21) --
+# until then that one state's County value BLOCKs (FIELD_TOO_LONG).
+county_abbreviations: {}
+
+# Set true only after an operator has diffed a saved $metadata export against
+# the constraint values above (backend/app/cli/check_bc_metadata.py).
+verified_against_metadata: false

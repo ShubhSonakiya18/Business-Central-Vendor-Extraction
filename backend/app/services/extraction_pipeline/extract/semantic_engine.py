@@ -94,6 +94,13 @@ class DocumentClassifier:
 # ENGINE
 # ---------------------------------------------------------------------------
 
+def _bc_address_layer_enabled() -> bool:
+    """settings.BC_ADDRESS_LAYER_ENABLED, read lazily (default False)."""
+    from app.config.config import settings
+
+    return settings.BC_ADDRESS_LAYER_ENABLED
+
+
 class SemanticEngine:
     def __init__(
         self,
@@ -363,19 +370,37 @@ class SemanticEngine:
         # is not trustworthy evidence that this function has nothing left to
         # do when address_1 is a genuinely combined line.
         if already(city) and already(state) and pin_is_solid:
+            # Captioned address: the resolver is not needed, but BC's field
+            # limits still apply (plan section 2, path b).
+            self._represent_captioned_address(result)
             return
         # A bare "1ST FLOOR" with no commas and no digits-run isn't a blob to
         # split -- leave it alone.
         if "," not in addr.value and not any(ch.isdigit() for ch in addr.value):
+            self._represent_captioned_address(result)
             return
 
         from .address_resolver import resolve_address_blob
 
-        r = resolve_address_blob(addr.value, multiline=True)
+        layer_on = _bc_address_layer_enabled()
+        r = resolve_address_blob(addr.value, multiline=True, bc_layer=layer_on)
         if not (r.city or r.state or r.pin_code or r.address_2 or r.address_3 or r.address_4):
+            self._represent_captioned_address(result)
             return
 
-        if r.address_1 and r.address_1 != addr.value:
+        if layer_on and not r.address_1 and not r.address_2:
+            # The whole blob was geography (city/state/PIN/country) -- nothing
+            # is left for the address lines. Do not leave the original blob in
+            # address_1, where it would duplicate City/County/Post Code.
+            original = addr.value
+            addr.value = ""
+            addr.notes.append(f"cleared: combined address was entirely geography ({original!r})")
+            self._flag(
+                result, "address_1", "FIELD_NOT_FOUND", addr.confidence,
+                detail="combined address contained only city/state/PIN/country",
+                reason_code="FIELD_NOT_FOUND", automation_class="MANUAL_REVIEW",
+            )
+        elif r.address_1 and r.address_1 != addr.value:
             addr.value = r.address_1
             addr.notes.append("address_1_trimmed_by_address_resolver")
 
@@ -409,6 +434,12 @@ class SemanticEngine:
             ("address_4", addr4, r.address_4),
         ):
             if not val:
+                if layer_on and key in overwrite_keys and already(fr):
+                    # Stale matcher noise (see the comment above): the resolver's
+                    # split of this same combined line says this line is empty,
+                    # and Address 3/4 never exist in BC (plan BC-12).
+                    fr.notes.append(f"cleared: stale value {fr.value!r} not part of the combined address")
+                    fr.value = ""
                 continue
             if already(fr) and key not in overwrite_keys:
                 continue
@@ -424,6 +455,10 @@ class SemanticEngine:
                 severity="warning",
             )
 
+        if layer_on:
+            self._record_address_representation(result, addr, r.representation, r.findings)
+            self._apply_extracted_country(result, r)
+
         # If we got here BECAUSE the existing pin was only a pattern hit
         # (pin_is_solid was False) and the combined line yielded no pin of its
         # own, that pattern-only value was almost certainly a stray digit run
@@ -432,6 +467,119 @@ class SemanticEngine:
         if not r.pin_code and pin is not None and pin.value and not pin_is_solid:
             pin.value = ""
             pin.notes.append("cleared: pattern-only pin, not confirmed by combined address")
+
+    def _represent_captioned_address(self, result: ExtractionResult) -> None:
+        """BC representation for an address the resolver did not split (the
+        captioned / bail paths -- plan section 2, path b). Fragments are
+        recovered from the captioned address_1..4 text (legacy address_3/4
+        fold into Address 2, in order); steps 5-9 then run exactly as on the
+        resolver path. No-op unless the BC address layer is enabled."""
+        if not _bc_address_layer_enabled():
+            return
+        lines = {k: result.fields.get(k) for k in ("address_1", "address_2", "address_3", "address_4")}
+        texts = {k: (fr.value or "") if fr else "" for k, fr in lines.items()}
+        if not any(t.strip() for t in texts.values()):
+            return
+
+        from app.config.config import settings
+        from app.services.bc_target_profile import load_profile
+
+        from .address_representation import layout_from_stored, represent_address
+        from .address_resolver import representation_to_dict
+
+        profile = load_profile(settings.BC_TARGET_PROFILE)
+        geo = {k: (result.fields[k].value or "") if result.fields.get(k) else ""
+               for k in ("city", "state", "country", "pin_code")}
+        decision = represent_address(
+            layout_from_stored(texts["address_1"], texts["address_2"],
+                               texts["address_3"], texts["address_4"]),
+            profile.address_limits(), profile_name=profile.name, geography=geo,
+        )
+
+        a1 = lines["address_1"] or FieldResult(key="address_1")
+        result.fields["address_1"] = a1
+        if (a1.value or "") != decision.address_1:
+            a1.notes.append("address_1_set_by_bc_address_layer")
+            a1.value = decision.address_1
+        for key, new_val in (("address_2", decision.address_2), ("address_3", ""), ("address_4", "")):
+            fr = lines[key]
+            if fr is None:
+                if new_val:
+                    result.fields[key] = FieldResult(
+                        key=key, value=new_val, confidence=a1.confidence,
+                        source_document=a1.source_document,
+                        notes=["set_by_bc_address_layer"],
+                    )
+                continue
+            if (fr.value or "") != new_val:
+                fr.notes.append(f"set_by_bc_address_layer (was {fr.value!r})")
+                fr.value = new_val
+        self._record_address_representation(
+            result, a1, representation_to_dict(decision), [f.to_dict() for f in decision.findings]
+        )
+
+    def _record_address_representation(
+        self,
+        result: ExtractionResult,
+        addr: FieldResult,
+        representation: Optional[dict],
+        findings: list[dict],
+    ) -> None:
+        """Attach the BC address layer's provenance to address_1 and raise its
+        MANUAL_REVIEW / BLOCK findings (plan section 8). AUTO_FIX
+        transformations (the A1 backfill) are recorded in provenance only --
+        never flagged, so they do not appear in needs_review /
+        fields_needing_review."""
+        if representation is None:
+            return
+        addr.provenance = [representation["semantic"], *representation["transforms"], {
+            "layer": "final",
+            "status": representation["status"],
+            "final_address_1": representation["final_address_1"],
+            "final_address_2": representation["final_address_2"],
+            "final_fragments": representation["final_fragments"],
+        }]
+        codes = [t["reason_code"] for t in representation["transforms"] if t.get("reason_code")]
+        addr.notes.append(
+            f"bc_address_layer: {representation['status']}"
+            + (f" ({', '.join(codes)})" if codes else "")
+        )
+        for finding in findings:
+            code = finding["reason_code"]
+            # provenance index of the transform that produced this finding, if
+            # any (index 0 is the semantic layout)
+            idx = next(
+                (i for i, entry in enumerate(addr.provenance) if entry.get("reason_code") == code),
+                None,
+            )
+            self._flag(
+                result, "address_1", code, addr.confidence,
+                detail=finding.get("detail", ""),
+                severity="error",
+                reason_code=code,
+                automation_class=finding["automation_class"],
+                provenance_index=idx,
+            )
+
+    def _apply_extracted_country(self, result: ExtractionResult, r) -> None:
+        """Extracted-first country precedence (plan case 14): a country token
+        actually present in the combined address wins over the configured
+        "India" default -- but never over a country captioned on a document.
+        The BC layer itself never touches geography; this only fills a value
+        that was defaulted."""
+        if getattr(r, "country_source", "default") != "extracted":
+            return
+        country = result.fields.get("country")
+        defaulted = country is None or not country.value or (
+            "filled_from_config_default" in country.notes
+        )
+        if not defaulted:
+            return
+        target = country or FieldResult(key="country")
+        target.value = r.country
+        target.source_document = "address_resolver"
+        target.notes.append("country_extracted_from_combined_address")
+        result.fields["country"] = target
 
     def _apply_validation_bias(self, spec, items: list[Candidate]) -> list[Candidate]:
         """Let the field's own validators influence which candidate wins.
@@ -543,6 +691,10 @@ class SemanticEngine:
         confidence: float,
         detail: str = "",
         severity: str = "error",
+        *,
+        reason_code: str | None = None,
+        automation_class: str | None = None,
+        provenance_index: int | None = None,
     ) -> None:
         entry = {
             "field": field_key,
@@ -552,4 +704,14 @@ class SemanticEngine:
         }
         if detail:
             entry["detail"] = detail
+        # Optional keys used by the BC address representation layer
+        # (docs/ADDRESS_SEGMENTATION_PLAN.md section 8). Entries without
+        # `automation_class` -- every pre-existing kind -- keep their current,
+        # informational meaning and are not push-gate findings.
+        if reason_code is not None:
+            entry["reason_code"] = reason_code
+        if automation_class is not None:
+            entry["automation_class"] = automation_class
+        if provenance_index is not None:
+            entry["provenance_index"] = provenance_index
         result.needs_review.append(entry)

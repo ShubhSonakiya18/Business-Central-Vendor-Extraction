@@ -6,6 +6,7 @@ expected values. Prints a per-case, per-field table and an aggregate.
 
     python -m app.eval.eval_address                # score current code
     python -m app.eval.eval_address --verbose      # also show every field
+    python -m app.eval.eval_address --multiline --bc-layer --cases address_vendor_lines.yaml
 
 Exit code is non-zero when any field is `wrong` or `missed`, so this can gate
 a change: run it before a phase to record the baseline, run it after to prove
@@ -32,7 +33,7 @@ _FIELDS = ("address_1", "address_2", "city", "state", "pin_code")
 _MULTILINE_FIELDS = ("address_1", "address_2", "address_3", "address_4", "city", "state", "pin_code")
 
 
-def _split(address: str, multiline: bool = False) -> dict[str, str]:
+def _split(address: str, multiline: bool = False, bc_layer: bool = False) -> dict[str, str]:
     """Run the address through the current segmentation path and return
     {address_1, address_2, [address_3, address_4,] city, state, pin_code,
     _confidence}.
@@ -44,24 +45,36 @@ def _split(address: str, multiline: bool = False) -> dict[str, str]:
     expected confidence, it is shown so a `correct`-but-`low` row is visible.
 
     `multiline=True` (opt-in, matching `resolve_address_blob`'s own default)
-    additionally splits the premises/locality remainder into address_3/
-    address_4 via address_segmenter.py, instead of leaving them empty. Scored
-    against the SAME address_cases.yaml -- these 11 hand-written cases were
-    written under the legacy "everything in address_1" convention, so most are
-    expected to still show address_3/address_4 as "" (correctly_absent) even
-    in multiline mode; this run exists to catch any UNEXPECTED hallucination
-    of a third/fourth line on cases that should not produce one, not to
-    exercise the segmenter's own dedicated corpus (address_line_cases.yaml,
-    scored separately by test_address_segmenter.py).
+    routes the premises/locality remainder through address_segmenter.py's
+    Address 1/Address 2 role-based split instead of joining everything into
+    address_1 as one string (the "interpretation B" convention this file's
+    own `expect` blocks are written under). address_3/address_4 are ALWAYS ""
+    under the current Address 1/Address 2 redesign -- correctly_absent on
+    every case, in every mode -- so a `--multiline` FAIL on address_1/
+    address_2 here is EXPECTED wherever a case's locality content should now
+    move to Address 2 under the new business rule (e.g. "14 EXAMPLE ROAD,
+    KORAMANGALA" -> address_1="14 EXAMPLE ROAD", address_2="KORAMANGALA"
+    rather than both joined into address_1). This file's cases were never
+    rewritten to the new convention because that is `address_line_cases.
+    yaml`'s job (scored by test_address_segmenter.py, 74/74 passing) --
+    `--multiline` here remains a smoke check that address_3/address_4 never
+    get populated and that city/state/pin_code stay correct, not a claim
+    that address_1/address_2 match this file's single-line convention.
     """
     from app.services.extraction_pipeline.extract.address_resolver import (
         resolve_address_blob,
     )
 
-    r = resolve_address_blob(address, multiline=multiline)
+    r = resolve_address_blob(address, multiline=multiline, bc_layer=bc_layer)
+    a1, a2 = r.address_1, r.address_2
+    if bc_layer and r.representation is not None:
+        # Score `expect` against the layout AFTER the step-5 backfill but
+        # BEFORE any BC rebalance -- i.e. the semantic expectation. The BC
+        # result is scored separately against `bc_expect` (see main()).
+        a1, a2 = _pre_bc_lines(r.representation)
     out = {
-        "address_1": r.address_1.strip(", ").strip(),
-        "address_2": r.address_2,
+        "address_1": a1.strip(", ").strip(),
+        "address_2": a2,
         "city": r.city,
         "state": r.state,
         "pin_code": r.pin_code,
@@ -70,7 +83,49 @@ def _split(address: str, multiline: bool = False) -> dict[str, str]:
     if multiline:
         out["address_3"] = r.address_3
         out["address_4"] = r.address_4
+    if bc_layer and r.representation is not None:
+        out["_bc"] = {
+            "address_1": r.address_1,
+            "address_2": r.address_2,
+            "status": r.representation["status"],
+            "reason_codes": [f["reason_code"] for f in r.findings],
+        }
     return out
+
+
+def _pre_bc_lines(representation: dict) -> tuple[str, str]:
+    """A1/A2 after the presentation fallback, before any BC rebalance."""
+    lines = (representation["semantic"]["semantic_address_1"],
+             representation["semantic"]["semantic_address_2"])
+    for t in representation["transforms"]:
+        if t["layer"] == "presentation_fallback":
+            lines = (t["final_address_1"], t["final_address_2"])
+    return lines
+
+
+def _score_bc(got: dict, case: dict) -> list[str]:
+    """Problems with the BC representation of one case. With a `bc_expect`
+    block the final A1/A2, status and review/block reason codes must match
+    it; without one, the BC layer must have changed nothing (final A1/A2 ==
+    the case's semantic `expect`) and raised no review/block finding."""
+    want = case.get("bc_expect")
+    problems = []
+    if want is None:
+        exp = case["expect"]
+        for f in ("address_1", "address_2"):
+            if _norm(got[f]) != _norm(exp.get(f, "")):
+                problems.append(f"bc {f}: got={got[f]!r} want={exp.get(f, '')!r} (no bc_expect: must be unchanged)")
+        if got["reason_codes"]:
+            problems.append(f"bc findings {got['reason_codes']} but no bc_expect")
+        return problems
+    for f in ("address_1", "address_2"):
+        if _norm(got[f]) != _norm(want[f]):
+            problems.append(f"bc {f}: got={got[f]!r} want={want[f]!r}")
+    if got["status"] != want["status"]:
+        problems.append(f"bc status: got={got['status']} want={want['status']}")
+    if sorted(got["reason_codes"]) != sorted(want.get("reason_codes", [])):
+        problems.append(f"bc reason_codes: got={got['reason_codes']} want={want.get('reason_codes', [])}")
+    return problems
 
 
 def _norm(s: str) -> str:
@@ -106,7 +161,18 @@ def main() -> int:
              "convention, e.g. address_vendor_lines.yaml. Keeping those in a "
              "separate file leaves the legacy baseline comparable.",
     )
+    ap.add_argument(
+        "--bc-layer", action="store_true",
+        help="with --multiline: run the BC address representation layer "
+             "(docs/ADDRESS_SEGMENTATION_PLAN.md). `expect` is scored against "
+             "the pre-rebalance layout; each case's final BC A1/A2, status and "
+             "reason codes are checked against its `bc_expect` block, or must "
+             "be unchanged when it has none.",
+    )
     args = ap.parse_args()
+    if args.bc_layer and not args.multiline:
+        print("--bc-layer requires --multiline", file=sys.stderr)
+        return 2
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -132,20 +198,22 @@ def main() -> int:
     tally = {"correct": 0, "wrong": 0, "missed": 0, "hallucinated": 0, "correctly_absent": 0}
     conf_tally: dict[str, int] = {"high": 0, "medium": 0, "low": 0}
     failing_cases: list[str] = []
+    bc_failing: list[str] = []
+    bc_counts: dict[str, int] = {}
     # cases the resolver got fully right but flagged low-confidence, and the
     # reverse -- a wrong/missed field the resolver reported as high. Both are
     # calibration problems worth seeing even though neither changes the score.
     miscalibrated: list[str] = []
 
     print("=" * 78)
-    mode = " [--multiline]" if args.multiline else ""
+    mode = (" [--multiline]" if args.multiline else "") + (" [--bc-layer]" if args.bc_layer else "")
     print(f"ADDRESS SEGMENTATION{mode}  --  {len(cases)} cases, {len(fields)} fields each")
     print(f"cases: {cases_file.name}")
     print("=" * 78)
 
     for case in cases:
         cid = case["id"]
-        got = _split(case["address"], multiline=args.multiline)
+        got = _split(case["address"], multiline=args.multiline, bc_layer=args.bc_layer)
         want = case["expect"]
 
         results = {f: _score_field(got.get(f, ""), want.get(f, "")) for f in fields}
@@ -166,8 +234,17 @@ def main() -> int:
         elif bad and conf == "high":
             miscalibrated.append(f"{cid} (wrong but high)")
 
-        status = "OK  " if not bad else "FAIL"
+        bc_problems: list[str] = []
+        if args.bc_layer and "_bc" in got:
+            bc_counts[got["_bc"]["status"]] = bc_counts.get(got["_bc"]["status"], 0) + 1
+            bc_problems = _score_bc(got["_bc"], case)
+            if bc_problems:
+                bc_failing.append(cid)
+
+        status = "OK  " if not bad and not bc_problems else "FAIL"
         print(f"\n[{status}] {cid}   confidence={conf}")
+        for p in bc_problems:
+            print(f"   ** {p}")
         if args.verbose or bad:
             for f in fields:
                 r = results[f]
@@ -190,11 +267,17 @@ def main() -> int:
           f"medium={conf_tally['medium']}  low={conf_tally['low']}   (reported, not scored)")
     if miscalibrated:
         print(f"  {'miscalibrated':18} {', '.join(miscalibrated)}")
+    if args.bc_layer:
+        summary = "  ".join(f"{k}={v}" for k, v in sorted(bc_counts.items()))
+        print(f"  {'bc status':18} {summary}")
+        print(f"  {'bc checks':18} {len(cases) - len(bc_failing)} / {len(cases)} cases match bc_expect / unchanged")
     if failing_cases:
         print(f"\n  failing cases: {', '.join(failing_cases)}")
+    if bc_failing:
+        print(f"  bc failing cases: {', '.join(bc_failing)}")
     print("=" * 78)
 
-    return 1 if (tally["wrong"] or tally["missed"] or tally["hallucinated"]) else 0
+    return 1 if (tally["wrong"] or tally["missed"] or tally["hallucinated"] or bc_failing) else 0
 
 
 if __name__ == "__main__":

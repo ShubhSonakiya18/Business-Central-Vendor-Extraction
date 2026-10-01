@@ -1,0 +1,351 @@
+Address ID,Name,Building,Street,City,State,Postal Code,Phone,Full Address,derived_address_1,derived_address_2,reconstructed,pred_address_1,pred_address_2,pred_address_3,pred_address_4,pred_city,pred_state,pred_pin,pred_confidence
+1,Anjali Saxena,Block 335,"9219, Vadpada Street",Surat,Gujarat,394445,8097777483,"Anjali Saxena
+Block 335
+9219, Vadpada Street
+Surat
+Gujarat
+394445
+India",Block 335,"9219, Vadpada Street, Surat, Gujarat, 394445","Block 335, 9219, Vadpada Street, Surat, Gujarat, 394445","Block 335, 9219",Vadpada Street,,,Surat,Gujarat,394445,high
+2,Sakshi Reddy,House No. 1063,"537, Kadkhali Main Road",Murshidabad,West Bengal,742163,9566793564,"Sakshi Reddy
+House No. 1063
+537, Kadkhali Main Road
+Murshidabad
+West Bengal
+742163
+India",House No. 1063,"537, Kadkhali Main Road, Murshidabad, West Bengal, 742163","House No. 1063, 537, Kadkhali Main Road, Murshidabad, West Bengal, 742163","House No. 1063, 537",Kadkhali Main Road,,,Murshidabad,West Bengal,742163,high
+3,Amit Kapoor,Unit 1653,"5933, Pappinisseri SO Road",Kannur,Kerala,670561,9269293640,"Amit Kapoor
+Unit 1653
+5933, Pappinisseri SO Road
+Kannur
+Kerala
+670561
+India",Unit 1653,"5933, Pappinisseri SO Road, Kannur, Kerala, 670561","Unit 1653, 5933, Pappinisseri SO Road, Kannur, Kerala, 670561","Unit 1653, 5933",Pappinisseri SO Road,,,Kannur,Kerala,670561,high
+4,Aadhya Malhotra,Flat 6600,"3542, Gopalapur Road",Kheri,Uttar Pradesh,262702,7931989749,"Aadhya Malhotra
+Flat 6600
+3542, Gopalapur Road
+Kheri
+Uttar Pradesh
+262702
+India",Flat 6600,"3542, Gopalapur Road, Kheri, Uttar Pradesh, 262702","Flat 6600, 3542, Gopalapur Road, Kheri, Uttar Pradesh, 262702","Flat 6600, 3542",Gopalapur Road,,,Kheri,Uttar Pradesh,262702,high
+5,Ananya Reddy,Plot No. 4724,"7382, Asafpur SO Nagar Road",Budaun,Uttar Pradesh,243632,9261340149,"Ananya Reddy
+Plot No. 4724
+7382, Asafpur SO Nagar Road
+Budaun
+Uttar Pradesh
+243632
+India",Plot No. 4724,"7382, Asafpur SO Nagar Road, Budaun, Uttar Pradesh, 243632","Plot No. 4724, 7382, Asafpur SO Nagar Road, Budaun, Uttar Pradesh, 243632","Plot No. 4724, 7382",Asafpur SO Nagar Road,,,Budaun,Uttar Pradesh,243632,high
+6,Tanvi Jain,Shop No. 5129,"7651, Chirrakunta Main Road",Kumuram Bheem Asifabad,Telangana,504294,6390998766,"Tanvi Jain
+Shop No. 5129
+7651, Chirrakunta Main Road
+Kumuram Bheem Asifabad
+Telangana
+504294
+India",Shop No. 5129,"7651, Chirrakunta Main Road, Kumuram Bheem Asifabad, Telangana, 504294","Shop No. 5129, 7651, Chirrakunta Main Road, Kumuram Bheem Asifabad, Telangana, 504294","Shop No. 5129, 7651",Chirrakunta Main Road,,,Kumuram Bheem Asifabad,Telangana,504294,high
+8,Nisha Sharma,Block 3172,"5363, Kunnathur Arni SO Lake Road",Tiruvannamalai,Tamil Nadu,632314,6967777992,"Nisha Sharma
+Block 3172
+5363, Kunnathur Arni SO Lake Road
+Tiruvannamalai
+Tamil Nadu
+632314
+India",Block 3172,"5363, Kunnathur Arni SO Lake Road, Tiruvannamalai, Tamil Nadu, 632314","Block 3172, 5363, Kunnathur Arni SO Lake Road, Tiruvannamalai, Tamil Nadu, 632314","Block 3172, 5363",Kunnathur Arni SO Lake Road,,,Tiruvannamalai,Tamil Nadu,632314,high
+9,Ravi Agarwal,Unit 7701,"5114, Kahala Station Road",Solan,Himachal Pradesh,173207,7505424451,"Ravi Agarwal
+Unit 7701
+5114, Kahala Station Road
+Solan
+Himachal Pradesh
+173207
+India",Unit 7701,"5114, Kahala Station Road, Solan, Himachal Pradesh, 173207","Unit 7701, 5114, Kahala Station Road, Solan, Himachal Pradesh, 173207","Unit 7701, 5114",Kahala Station Road,,,Solan,Himachal Pradesh,173207,high
+10,Aadhya Chatterjee,Unit 5274,"1426, Sunsyari Park Road",Nainital,Uttarakhand,263134,9059531573,"Aadhya Chatterjee
+Unit 5274
+1426, Sunsyari Park Road
+Nainital
+Uttarakhand
+263134
+India",Unit 5274,"1426, Sunsyari Park Road, Nainital, Uttarakhand, 263134","Unit 5274, 1426, Sunsyari Park Road, Nainital, Uttarakhand, 263134","Unit 5274, 1426",Sunsyari Park Road,,,Nainital,Uttarakhand,263134,high
+11,Nikhil Yadav,Shop No. 4314,"8082, Jamgarh Temple Road",Raisen,Madhya Pradesh,464671,8689006722,"Nikhil Yadav
+Shop No. 4314
+8082, Jamgarh Temple Road
+Raisen
+Madhya Pradesh
+464671
+India",Shop No. 4314,"8082, Jamgarh Temple Road, Raisen, Madhya Pradesh, 464671","Shop No. 4314, 8082, Jamgarh Temple Road, Raisen, Madhya Pradesh, 464671","Shop No. 4314, 8082",Jamgarh Temple Road,,,Raisen,Madhya Pradesh,464671,high
+13,Arvind Verma,Flat 8491,"2809, Marripalem Park Road",Palnadu,Andhra Pradesh,522614,9802946629,"Arvind Verma
+Flat 8491
+2809, Marripalem Park Road
+Palnadu
+Andhra Pradesh
+522614
+India",Flat 8491,"2809, Marripalem Park Road, Palnadu, Andhra Pradesh, 522614","Flat 8491, 2809, Marripalem Park Road, Palnadu, Andhra Pradesh, 522614","Flat 8491, 2809",Marripalem Park Road,,,Palnadu,Andhra Pradesh,522614,high
+14,Priya Nair,Plot No. 8229,"5276, Jallapur Station Road",Haveri,Karnataka,581118,8583893737,"Priya Nair
+Plot No. 8229
+5276, Jallapur Station Road
+Haveri
+Karnataka
+581118
+India",Plot No. 8229,"5276, Jallapur Station Road, Haveri, Karnataka, 581118","Plot No. 8229, 5276, Jallapur Station Road, Haveri, Karnataka, 581118","Plot No. 8229, 5276",Jallapur Station Road,,,Haveri,Karnataka,581118,high
+15,Sneha Nair,Unit 8118,"7698, Malanpur Street",Bharuch,Gujarat,393030,7021124913,"Sneha Nair
+Unit 8118
+7698, Malanpur Street
+Bharuch
+Gujarat
+393030
+India",Unit 8118,"7698, Malanpur Street, Bharuch, Gujarat, 393030","Unit 8118, 7698, Malanpur Street, Bharuch, Gujarat, 393030","Unit 8118, 7698",Malanpur Street,,,Bharuch,Gujarat,393030,high
+16,Kunal Chatterjee,Flat 123,"8903, Lahrabad Market Road",Bhojpur,Bihar,802207,9638181234,"Kunal Chatterjee
+Flat 123
+8903, Lahrabad Market Road
+Bhojpur
+Bihar
+802207
+India",Flat 123,"8903, Lahrabad Market Road, Bhojpur, Bihar, 802207","Flat 123, 8903, Lahrabad Market Road, Bhojpur, Bihar, 802207","Flat 123, 8903",Lahrabad Market Road,,,Bhojpur,Bihar,802207,high
+19,Nikhil Rao,Shop No. 8783,"4976, Sukrauli Nagar Road",Gorakhpur,Uttar Pradesh,273213,7244336134,"Nikhil Rao
+Shop No. 8783
+4976, Sukrauli Nagar Road
+Gorakhpur
+Uttar Pradesh
+273213
+India",Shop No. 8783,"4976, Sukrauli Nagar Road, Gorakhpur, Uttar Pradesh, 273213","Shop No. 8783, 4976, Sukrauli Nagar Road, Gorakhpur, Uttar Pradesh, 273213","Shop No. 8783, 4976",Sukrauli Nagar Road,,,Gorakhpur,Uttar Pradesh,273213,high
+20,Sneha Nair,Shop No. 6296,"6140, Vaidhyagoundampudur Road",Salem,Tamil Nadu,636115,6989164046,"Sneha Nair
+Shop No. 6296
+6140, Vaidhyagoundampudur Road
+Salem
+Tamil Nadu
+636115
+India",Shop No. 6296,"6140, Vaidhyagoundampudur Road, Salem, Tamil Nadu, 636115","Shop No. 6296, 6140, Vaidhyagoundampudur Road, Salem, Tamil Nadu, 636115","Shop No. 6296, 6140",Vaidhyagoundampudur Road,,,Salem,Tamil Nadu,636115,high
+21,Pooja Iyer,House No. 3124,"8853, Dhulia Khalisa Station Road",Coochbehar,West Bengal,735303,8336656344,"Pooja Iyer
+House No. 3124
+8853, Dhulia Khalisa Station Road
+Coochbehar
+West Bengal
+735303
+India",House No. 3124,"8853, Dhulia Khalisa Station Road, Coochbehar, West Bengal, 735303","House No. 3124, 8853, Dhulia Khalisa Station Road, Coochbehar, West Bengal, 735303","House No. 3124, 8853",Dhulia Khalisa Station Road,,,Coochbehar,West Bengal,735303,high
+22,Kavya Ghosh,House No. 8698,"4784, Bangur Nagar SO Main Road",Mumbai Suburban,Maharashtra,400104,9649825920,"Kavya Ghosh
+House No. 8698
+4784, Bangur Nagar SO Main Road
+Mumbai Suburban
+Maharashtra
+400104
+India",House No. 8698,"4784, Bangur Nagar SO Main Road, Mumbai Suburban, Maharashtra, 400104","House No. 8698, 4784, Bangur Nagar SO Main Road, Mumbai Suburban, Maharashtra, 400104","House No. 8698, 4784",Bangur Nagar SO Main Road,,,Mumbai Suburban,Maharashtra,400104,high
+24,Vihaan Mehta,House No. 6471,"5471, Sugur MG Road",Chitradurga,Karnataka,577546,8675210333,"Vihaan Mehta
+House No. 6471
+5471, Sugur MG Road
+Chitradurga
+Karnataka
+577546
+India",House No. 6471,"5471, Sugur MG Road, Chitradurga, Karnataka, 577546","House No. 6471, 5471, Sugur MG Road, Chitradurga, Karnataka, 577546","House No. 6471, 5471",Sugur MG Road,,,Chitradurga,Karnataka,577546,high
+25,Vihaan Reddy,Apartment 732,"9750, Wakodi Market Road",Nagpur,Maharashtra,441101,8638252697,"Vihaan Reddy
+Apartment 732
+9750, Wakodi Market Road
+Nagpur
+Maharashtra
+441101
+India",Apartment 732,"9750, Wakodi Market Road, Nagpur, Maharashtra, 441101","Apartment 732, 9750, Wakodi Market Road, Nagpur, Maharashtra, 441101","Apartment 732, 9750",Wakodi Market Road,,,Nagpur,Maharashtra,441101,high
+26,Shreya Nair,House No. 4829,"9877, Karora MG Road",Kamrup,Assam,781381,6768196747,"Shreya Nair
+House No. 4829
+9877, Karora MG Road
+Kamrup
+Assam
+781381
+India",House No. 4829,"9877, Karora MG Road, Kamrup, Assam, 781381","House No. 4829, 9877, Karora MG Road, Kamrup, Assam, 781381","House No. 4829, 9877",Karora MG Road,,,Kamrup,Assam,781381,high
+27,Sakshi Gupta,Flat 5908,"623, Kithanagamangala Street",Tumakuru,Karnataka,572130,6346823402,"Sakshi Gupta
+Flat 5908
+623, Kithanagamangala Street
+Tumakuru
+Karnataka
+572130
+India",Flat 5908,"623, Kithanagamangala Street, Tumakuru, Karnataka, 572130","Flat 5908, 623, Kithanagamangala Street, Tumakuru, Karnataka, 572130","Flat 5908, 623",Kithanagamangala Street,,,Tumakuru,Karnataka,572130,high
+28,Reyansh Singh,Plot No. 4488,"7124, Chellampattidai Temple Road",Kanchipuram,Tamil Nadu,631553,6638620856,"Reyansh Singh
+Plot No. 4488
+7124, Chellampattidai Temple Road
+Kanchipuram
+Tamil Nadu
+631553
+India",Plot No. 4488,"7124, Chellampattidai Temple Road, Kanchipuram, Tamil Nadu, 631553","Plot No. 4488, 7124, Chellampattidai Temple Road, Kanchipuram, Tamil Nadu, 631553","Plot No. 4488, 7124",Chellampattidai Temple Road,,,Kanchipuram,Tamil Nadu,631553,high
+29,Ishaan Sinha,Block 2981,"121, Panzinara Lake Road",Srinagar,Jammu And Kashmir,193501,8447482331,"Ishaan Sinha
+Block 2981
+121, Panzinara Lake Road
+Srinagar
+Jammu And Kashmir
+193501
+India",Block 2981,"121, Panzinara Lake Road, Srinagar, Jammu And Kashmir, 193501","Block 2981, 121, Panzinara Lake Road, Srinagar, Jammu And Kashmir, 193501","Block 2981, 121",Panzinara Lake Road,,,Srinagar,Jammu and Kashmir,193501,high
+30,Rahul Bhat,House No. 8510,"4391, Kamrupbarkhola Park Road",Nalbari,Assam,781350,8525401898,"Rahul Bhat
+House No. 8510
+4391, Kamrupbarkhola Park Road
+Nalbari
+Assam
+781350
+India",House No. 8510,"4391, Kamrupbarkhola Park Road, Nalbari, Assam, 781350","House No. 8510, 4391, Kamrupbarkhola Park Road, Nalbari, Assam, 781350","House No. 8510, 4391",Kamrupbarkhola Park Road,,,Nalbari,Assam,781350,high
+31,Sneha Mehta,Shop No. 6714,"1382, Painkram Park Road",Raipur,Chhattisgarh,494447,7565285610,"Sneha Mehta
+Shop No. 6714
+1382, Painkram Park Road
+Raipur
+Chhattisgarh
+494447
+India",Shop No. 6714,"1382, Painkram Park Road, Raipur, Chhattisgarh, 494447","Shop No. 6714, 1382, Painkram Park Road, Raipur, Chhattisgarh, 494447","Shop No. 6714, 1382",Painkram Park Road,,,Raipur,Chhattisgarh,494447,high
+33,Neha Shetty,Block 7129,"2962, Pisawah SO Temple Road",Aligarh,Uttar Pradesh,202155,8283113070,"Neha Shetty
+Block 7129
+2962, Pisawah SO Temple Road
+Aligarh
+Uttar Pradesh
+202155
+India",Block 7129,"2962, Pisawah SO Temple Road, Aligarh, Uttar Pradesh, 202155","Block 7129, 2962, Pisawah SO Temple Road, Aligarh, Uttar Pradesh, 202155","Block 7129, 2962",Pisawah SO Temple Road,,,Aligarh,Uttar Pradesh,202155,high
+34,Kunal Joshi,Plot No. 2460,"1105, Batouli SO Lake Road",Surguja,Chhattisgarh,497101,6608714570,"Kunal Joshi
+Plot No. 2460
+1105, Batouli SO Lake Road
+Surguja
+Chhattisgarh
+497101
+India",Plot No. 2460,"1105, Batouli SO Lake Road, Surguja, Chhattisgarh, 497101","Plot No. 2460, 1105, Batouli SO Lake Road, Surguja, Chhattisgarh, 497101","Plot No. 2460, 1105",Batouli SO Lake Road,,,Surguja,Chhattisgarh,497101,high
+35,Siddharth Jain,Block 392,"7445, Azadnagar Nagar Road",Garhwa,Jharkhand,822129,6562235347,"Siddharth Jain
+Block 392
+7445, Azadnagar Nagar Road
+Garhwa
+Jharkhand
+822129
+India",Block 392,"7445, Azadnagar Nagar Road, Garhwa, Jharkhand, 822129","Block 392, 7445, Azadnagar Nagar Road, Garhwa, Jharkhand, 822129","Block 392, 7445",Azadnagar Nagar Road,,,Garhwa,Jharkhand,822129,high
+36,Rahul Sharma,Shop No. 2554,"9640, Faruqnagar Temple Road",Ranga Reddy,Telangana,509216,7470505359,"Rahul Sharma
+Shop No. 2554
+9640, Faruqnagar Temple Road
+Ranga Reddy
+Telangana
+509216
+India",Shop No. 2554,"9640, Faruqnagar Temple Road, Ranga Reddy, Telangana, 509216","Shop No. 2554, 9640, Faruqnagar Temple Road, Ranga Reddy, Telangana, 509216","Shop No. 2554, 9640",Faruqnagar Temple Road,,,Ranga Reddy,Telangana,509216,high
+37,Aditi Reddy,Shop No. 4276,"8452, Sakaddi Temple Road",Bhojpur,Bihar,802160,7549758624,"Aditi Reddy
+Shop No. 4276
+8452, Sakaddi Temple Road
+Bhojpur
+Bihar
+802160
+India",Shop No. 4276,"8452, Sakaddi Temple Road, Bhojpur, Bihar, 802160","Shop No. 4276, 8452, Sakaddi Temple Road, Bhojpur, Bihar, 802160","Shop No. 4276, 8452",Sakaddi Temple Road,,,Bhojpur,Bihar,802160,high
+39,Siddharth Shetty,Apartment 598,"976, Sarmaspura Temple Road",Vaishali,Bihar,844126,9827020511,"Siddharth Shetty
+Apartment 598
+976, Sarmaspura Temple Road
+Vaishali
+Bihar
+844126
+India",Apartment 598,"976, Sarmaspura Temple Road, Vaishali, Bihar, 844126","Apartment 598, 976, Sarmaspura Temple Road, Vaishali, Bihar, 844126","Apartment 598, 976",Sarmaspura Temple Road,,,Vaishali,Bihar,844126,high
+40,Riya Reddy,House No. 1532,"9843, Rasoolpur Market Road",Agra,Uttar Pradesh,283111,6593996039,"Riya Reddy
+House No. 1532
+9843, Rasoolpur Market Road
+Agra
+Uttar Pradesh
+283111
+India",House No. 1532,"9843, Rasoolpur Market Road, Agra, Uttar Pradesh, 283111","House No. 1532, 9843, Rasoolpur Market Road, Agra, Uttar Pradesh, 283111","House No. 1532, 9843",Rasoolpur Market Road,,,Agra,Uttar Pradesh,283111,high
+42,Aadhya Saxena,House No. 1616,"5741, Satasar Nagar Road",Bikaner,Rajasthan,334021,9172079572,"Aadhya Saxena
+House No. 1616
+5741, Satasar Nagar Road
+Bikaner
+Rajasthan
+334021
+India",House No. 1616,"5741, Satasar Nagar Road, Bikaner, Rajasthan, 334021","House No. 1616, 5741, Satasar Nagar Road, Bikaner, Rajasthan, 334021","House No. 1616, 5741",Satasar Nagar Road,,,Bikaner,Rajasthan,334021,high
+43,Priya Pandey,House No. 9241,"7042, Karuvatta North Park Road",Alappuzha,Kerala,690517,7945137963,"Priya Pandey
+House No. 9241
+7042, Karuvatta North Park Road
+Alappuzha
+Kerala
+690517
+India",House No. 9241,"7042, Karuvatta North Park Road, Alappuzha, Kerala, 690517","House No. 9241, 7042, Karuvatta North Park Road, Alappuzha, Kerala, 690517","House No. 9241, 7042",Karuvatta North Park Road,,,Alappuzha,Kerala,690517,high
+44,Diya Malhotra,Plot No. 8241,"814, Khirmani Park Road",Nashik,Maharashtra,423204,9555246032,"Diya Malhotra
+Plot No. 8241
+814, Khirmani Park Road
+Nashik
+Maharashtra
+423204
+India",Plot No. 8241,"814, Khirmani Park Road, Nashik, Maharashtra, 423204","Plot No. 8241, 814, Khirmani Park Road, Nashik, Maharashtra, 423204","Plot No. 8241, 814",Khirmani Park Road,,,Nashik,Maharashtra,423204,high
+45,Vihaan Reddy,Plot No. 7284,"3502, Nasrullabad Lake Road",Kamareddy,Telangana,503321,9798607505,"Vihaan Reddy
+Plot No. 7284
+3502, Nasrullabad Lake Road
+Kamareddy
+Telangana
+503321
+India",Plot No. 7284,"3502, Nasrullabad Lake Road, Kamareddy, Telangana, 503321","Plot No. 7284, 3502, Nasrullabad Lake Road, Kamareddy, Telangana, 503321","Plot No. 7284, 3502",Nasrullabad Lake Road,,,Kamareddy,Telangana,503321,high
+46,Aadhya Kapoor,Flat 9031,"5928, Gudlanayanipalle Street",Chittoor,Andhra Pradesh,517425,8593119806,"Aadhya Kapoor
+Flat 9031
+5928, Gudlanayanipalle Street
+Chittoor
+Andhra Pradesh
+517425
+India",Flat 9031,"5928, Gudlanayanipalle Street, Chittoor, Andhra Pradesh, 517425","Flat 9031, 5928, Gudlanayanipalle Street, Chittoor, Andhra Pradesh, 517425","Flat 9031, 5928",Gudlanayanipalle Street,,,Chittoor,Andhra Pradesh,517425,high
+47,Kritika Iyer,Plot No. 2688,"772, Rampur Nagar Road",Lohardaga,Jharkhand,835302,8413899130,"Kritika Iyer
+Plot No. 2688
+772, Rampur Nagar Road
+Lohardaga
+Jharkhand
+835302
+India",Plot No. 2688,"772, Rampur Nagar Road, Lohardaga, Jharkhand, 835302","Plot No. 2688, 772, Rampur Nagar Road, Lohardaga, Jharkhand, 835302","Plot No. 2688, 772",Rampur Nagar Road,,,Lohardaga,Jharkhand,835302,high
+48,Nisha Pandey,Flat 8779,"1666, P and T Colony (Gaddiannaram) Main Road",Ranga Reddy,Telangana,500060,7661578396,"Nisha Pandey
+Flat 8779
+1666, P and T Colony (Gaddiannaram) Main Road
+Ranga Reddy
+Telangana
+500060
+India",Flat 8779,"1666, P and T Colony (Gaddiannaram) Main Road, Ranga Reddy, Telangana, 500060","Flat 8779, 1666, P and T Colony (Gaddiannaram) Main Road, Ranga Reddy, Telangana, 500060","Flat 8779, 1666",P and T Colony (Gaddiannaram) Main Road,,,Ranga Reddy,Telangana,500060,high
+49,Pranav Sinha,Plot No. 9641,"8915, Bangsi Minol Park Road",North Garo Hills,Meghalaya,794108,8420388278,"Pranav Sinha
+Plot No. 9641
+8915, Bangsi Minol Park Road
+North Garo Hills
+Meghalaya
+794108
+India",Plot No. 9641,"8915, Bangsi Minol Park Road, North Garo Hills, Meghalaya, 794108","Plot No. 9641, 8915, Bangsi Minol Park Road, North Garo Hills, Meghalaya, 794108","Plot No. 9641, 8915",Bangsi Minol Park Road,,,North Garo Hills,Meghalaya,794108,high
+50,Pooja Shetty,Block 7964,"6805, Bijayaramachandrapur Road",Puri,Odisha,752012,9232175051,"Pooja Shetty
+Block 7964
+6805, Bijayaramachandrapur Road
+Puri
+Odisha
+752012
+India",Block 7964,"6805, Bijayaramachandrapur Road, Puri, Odisha, 752012","Block 7964, 6805, Bijayaramachandrapur Road, Puri, Odisha, 752012","Block 7964, 6805",Bijayaramachandrapur Road,,,Puri,Odisha,752012,high
+51,Priya Reddy,Block 7933,"3704, Meston Ganj SO Park Road",Rampur,Uttar Pradesh,244901,6264253189,"Priya Reddy
+Block 7933
+3704, Meston Ganj SO Park Road
+Rampur
+Uttar Pradesh
+244901
+India",Block 7933,"3704, Meston Ganj SO Park Road, Rampur, Uttar Pradesh, 244901","Block 7933, 3704, Meston Ganj SO Park Road, Rampur, Uttar Pradesh, 244901","Block 7933, 3704",Meston Ganj SO Park Road,,,Rampur,Uttar Pradesh,244901,high
+52,Rohan Jain,Block 4805,"4132, Phusauli Road",Aligarh,Uttar Pradesh,202129,6732647157,"Rohan Jain
+Block 4805
+4132, Phusauli Road
+Aligarh
+Uttar Pradesh
+202129
+India",Block 4805,"4132, Phusauli Road, Aligarh, Uttar Pradesh, 202129","Block 4805, 4132, Phusauli Road, Aligarh, Uttar Pradesh, 202129","Block 4805, 4132",Phusauli Road,,,Aligarh,Uttar Pradesh,202129,high
+53,Ishita Kumar,Shop No. 7501,"4103, Gonepudi Nagar Road",Palnadu,Andhra Pradesh,522611,8528987341,"Ishita Kumar
+Shop No. 7501
+4103, Gonepudi Nagar Road
+Palnadu
+Andhra Pradesh
+522611
+India",Shop No. 7501,"4103, Gonepudi Nagar Road, Palnadu, Andhra Pradesh, 522611","Shop No. 7501, 4103, Gonepudi Nagar Road, Palnadu, Andhra Pradesh, 522611","Shop No. 7501, 4103",Gonepudi Nagar Road,,,Palnadu,Andhra Pradesh,522611,high
+54,Sakshi Bose,Flat 9718,"2582, Mahab Street",Agra,Uttar Pradesh,283112,9987970753,"Sakshi Bose
+Flat 9718
+2582, Mahab Street
+Agra
+Uttar Pradesh
+283112
+India",Flat 9718,"2582, Mahab Street, Agra, Uttar Pradesh, 283112","Flat 9718, 2582, Mahab Street, Agra, Uttar Pradesh, 283112","Flat 9718, 2582",Mahab Street,,,Agra,Uttar Pradesh,283112,high
+57,Nikhil Mehta,Shop No. 6820,"1740, Daula Nagar Road",Baghpat,Uttar Pradesh,250601,7786305565,"Nikhil Mehta
+Shop No. 6820
+1740, Daula Nagar Road
+Baghpat
+Uttar Pradesh
+250601
+India",Shop No. 6820,"1740, Daula Nagar Road, Baghpat, Uttar Pradesh, 250601","Shop No. 6820, 1740, Daula Nagar Road, Baghpat, Uttar Pradesh, 250601","Shop No. 6820, 1740",Daula Nagar Road,,,Baghpat,Uttar Pradesh,250601,high
+58,Neha Kulkarni,Unit 8164,"4890, Ratnakhedi Temple Road",Sehore,Madhya Pradesh,466111,8861170200,"Neha Kulkarni
+Unit 8164
+4890, Ratnakhedi Temple Road
+Sehore
+Madhya Pradesh
+466111
+India",Unit 8164,"4890, Ratnakhedi Temple Road, Sehore, Madhya Pradesh, 466111","Unit 8164, 4890, Ratnakhedi Temple Road, Sehore, Madhya Pradesh, 466111","Unit 8164, 4890",Ratnakhedi Temple Road,,,Sehore,Madhya Pradesh,466111,high
+59,Neha Sharma,Plot No. 1983,"7219, KUSUNPUR Station Road",Cuttack,Odisha,754207,7184910447,"Neha Sharma
+Plot No. 1983
+7219, KUSUNPUR Station Road
+Cuttack
+Odisha
+754207
+India",Plot No. 1983,"7219, KUSUNPUR Station Road, Cuttack, Odisha, 754207","Plot No. 1983, 7219, KUSUNPUR Station Road, Cuttack, Odisha, 754207","Plot No. 1983, 7219",KUSUNPUR Station Road,,,Cuttack,Odisha,754207,high
+60,Rohan Nair,Block 7806,"2330, Budheli Street",Arvalli,Gujarat,383246,8815299171,"Rohan Nair
+Block 7806
+2330, Budheli Street
+Arvalli
+Gujarat
+383246
+India",Block 7806,"2330, Budheli Street, Arvalli, Gujarat, 383246","Block 7806, 2330, Budheli Street, Arvalli, Gujarat, 383246","Block 7806, 2330",Budheli Street,,,Arvalli,Gujarat,383246,high

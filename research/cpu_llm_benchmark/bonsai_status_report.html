@@ -1,0 +1,308 @@
+<title>Ternary-Bonsai CPU Status</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --paper:#F6F7F5;
+  --card:#FFFFFF;
+  --ink:#16191D;
+  --body:#333A42;
+  --muted:#5C6570;
+  --faint:#8B939C;
+  --rule:#E0E3DE;
+  --rule-hard:#C7CCC5;
+  --accent:#1F6F5C;
+  --accent-soft:#E4EFEA;
+  --warn:#A8521C;
+  --warn-soft:#F9EDE3;
+  --stop:#8C2F2F;
+  --stop-soft:#F7E8E8;
+  --ok:#2F6B4F;
+  --ok-soft:#E7F0EA;
+  --display:'Fraunces',Georgia,serif;
+  --sans:'Public Sans',system-ui,-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#15171A; --card:#1D2024; --ink:#F1F2EF; --body:#CFD4D8; --muted:#9AA2AA; --faint:#6E767E;
+    --rule:#2B2F34; --rule-hard:#3C4249; --accent:#6FC2A6; --accent-soft:#182B26;
+    --warn:#DE9560; --warn-soft:#2C2017; --stop:#D98080; --stop-soft:#2C1B1B; --ok:#7FBF9B; --ok-soft:#16261E;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15171A; --card:#1D2024; --ink:#F1F2EF; --body:#CFD4D8; --muted:#9AA2AA; --faint:#6E767E;
+  --rule:#2B2F34; --rule-hard:#3C4249; --accent:#6FC2A6; --accent-soft:#182B26;
+  --warn:#DE9560; --warn-soft:#2C2017; --stop:#D98080; --stop-soft:#2C1B1B; --ok:#7FBF9B; --ok-soft:#16261E;
+}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--body);font-family:var(--sans);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased;padding-inline:20px;padding-block:0 96px}
+.wrap{max-width:1080px;margin:0 auto}
+.col{max-width:70ch}
+
+header.mast{padding-block:48px 28px;border-bottom:2px solid var(--ink);margin-bottom:32px}
+.eyebrow{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(2rem,4.6vw,3rem);line-height:1.08;letter-spacing:-.015em;color:var(--ink);margin:0 0 14px;text-wrap:balance;max-width:20ch}
+.standfirst{font-family:var(--display);font-size:1.1rem;line-height:1.55;color:var(--muted);max-width:62ch;margin:0}
+.mast-meta{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:20px;font-family:var(--mono);font-size:.72rem;color:var(--faint)}
+.mast-meta b{color:var(--body);font-weight:500}
+
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:48px}
+nav.toc a{font-family:var(--mono);font-size:.72rem;letter-spacing:.03em;color:var(--muted);text-decoration:none;border:1px solid var(--rule);padding:6px 11px;border-radius:2px;background:var(--card)}
+nav.toc a:hover{border-color:var(--accent);color:var(--accent)}
+
+section{margin-bottom:56px;scroll-margin-top:20px}
+h2{font-family:var(--display);font-size:1.5rem;font-weight:600;letter-spacing:-.01em;color:var(--ink);margin:0 0 8px;text-wrap:balance}
+h3{font-family:var(--sans);font-size:.95rem;font-weight:600;color:var(--ink);margin:26px 0 8px}
+.dek{color:var(--muted);margin:0 0 20px;max-width:64ch}
+p{margin:0 0 14px}
+.col p:last-child{margin-bottom:0}
+strong{color:var(--ink);font-weight:600}
+code{font-family:var(--mono);font-size:.855em;background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:1px 5px;color:var(--ink)}
+
+.status-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:20px 0}
+.status-cell{background:var(--card);padding:14px 16px;display:flex;align-items:center;gap:10px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.dot.ok{background:var(--ok)}
+.dot.stop{background:var(--stop)}
+.dot.warn{background:var(--warn)}
+.status-t{font-size:.86rem;font-weight:600;color:var(--ink);line-height:1.3}
+.status-s{font-size:.74rem;color:var(--faint)}
+
+.plain{background:var(--accent-soft);border-left:3px solid var(--accent);padding:16px 20px;margin:20px 0;max-width:70ch}
+.plain p{margin:0;color:var(--body)}
+.plain .lbl{display:block;font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+
+.caveat{background:var(--warn-soft);border-left:3px solid var(--warn);padding:16px 20px;margin:20px 0;max-width:70ch}
+.caveat p{margin:0;color:var(--body)}
+.caveat .lbl{display:block;font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--warn);margin-bottom:6px}
+
+.fail{background:var(--stop-soft);border-left:3px solid var(--stop);padding:16px 20px;margin:20px 0;max-width:70ch}
+.fail p{margin:0;color:var(--body)}
+.fail .lbl{display:block;font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--stop);margin-bottom:6px}
+
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:20px 0}
+.num-cell{background:var(--card);padding:15px 16px}
+.num-v{font-family:var(--display);font-size:1.65rem;font-weight:600;color:var(--ink);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.num-v small{font-size:.85rem;color:var(--faint);font-weight:400}
+.num-l{font-family:var(--mono);font-size:.62rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-top:7px}
+.num-s{font-size:.75rem;color:var(--faint);margin-top:3px;line-height:1.4}
+
+.tbl-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;background:var(--card);font-size:.85rem;min-width:480px}
+th{text-align:left;font-family:var(--mono);font-size:.63rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:9px 13px;border-bottom:1px solid var(--rule-hard);background:var(--paper);white-space:nowrap}
+td{padding:9px 13px;border-bottom:1px solid var(--rule);vertical-align:top;color:var(--body)}
+tr:last-child td{border-bottom:none}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.bad{color:var(--stop);font-weight:500}
+td.good{color:var(--ok);font-weight:500}
+
+.verdict{border:1px solid var(--stop);background:var(--stop-soft);padding:20px 22px;margin:22px 0;max-width:70ch}
+.verdict .lbl{display:block;font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--stop);margin-bottom:8px}
+.verdict .big{font-family:var(--display);font-size:1.25rem;font-weight:600;color:var(--ink);line-height:1.35;margin:0 0 10px;text-wrap:balance}
+.verdict p{margin:0;font-size:.92rem;color:var(--body)}
+
+.timeline{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);margin:20px 0}
+.tl-item{background:var(--card);padding:14px 18px;display:grid;grid-template-columns:100px 1fr;gap:14px;align-items:start}
+.tl-time{font-family:var(--mono);font-size:.68rem;color:var(--faint);padding-top:2px}
+.tl-t{font-weight:600;color:var(--ink);font-size:.9rem;margin-bottom:3px}
+.tl-d{font-size:.83rem;color:var(--muted);line-height:1.5}
+
+ul.tight{margin:0 0 14px;padding-left:20px}
+ul.tight li{margin-bottom:7px}
+ul.tight li::marker{color:var(--faint)}
+
+.chip{display:inline-block;font-family:var(--mono);font-size:.62rem;font-weight:500;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:2px;margin-left:8px;vertical-align:middle}
+.chip-done{background:var(--ok-soft);color:var(--ok)}
+.chip-open{background:var(--warn-soft);color:var(--warn)}
+.chip-fail{background:var(--stop-soft);color:var(--stop)}
+
+footer{border-top:1px solid var(--rule);margin-top:56px;padding-top:20px;font-family:var(--mono);font-size:.7rem;color:var(--faint);max-width:70ch}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Complete session record</p>
+  <h1>Ternary-Bonsai-2-27B on CPU: everything measured so far</h1>
+  <p class="standfirst">Full record of what was tested, what the numbers actually are, what broke, and what's still unknown &mdash; covering both the completed text-generation benchmark and the unfinished vision (image-input) investigation.</p>
+  <div class="mast-meta">
+    <span>Model <b>Ternary-Bonsai-2-27B</b> &middot; PTQ1_0, 5.53 GiB</span>
+    <span>Machine <b>i7-12700H &middot; 14C/20T &middot; 15.6 GB</b></span>
+    <span>Runtime <b>PrismML-Eng/llama.cpp, build 10709</b></span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#status">Status at a glance</a>
+  <a href="#text">Text-path benchmark</a>
+  <a href="#vision">Vision-path attempt</a>
+  <a href="#limitations">Limitations</a>
+  <a href="#open">What remains unseen</a>
+  <a href="#pipeline">Pipeline integration</a>
+</nav>
+
+<!-- ============ STATUS ============ -->
+<section id="status">
+  <h2>Status at a glance</h2>
+  <div class="status-strip">
+    <div class="status-cell"><span class="dot ok"></span><div><div class="status-t">Text generation</div><div class="status-s">Fully benchmarked, complete</div></div></div>
+    <div class="status-cell"><span class="dot stop"></span><div><div class="status-t">Image input (vision)</div><div class="status-s">Attempted, failed mid-run</div></div></div>
+    <div class="status-cell"><span class="dot ok"></span><div><div class="status-t">CPU-only verified</div><div class="status-s">Both paths, mechanically confirmed</div></div></div>
+    <div class="status-cell"><span class="dot warn"></span><div><div class="status-t">Pipeline hook</div><div class="status-s">Built, opt-in, unused by default</div></div></div>
+  </div>
+</section>
+
+<!-- ============ TEXT PATH ============ -->
+<section id="text">
+  <h2>1. Text-generation benchmark &mdash; complete</h2>
+  <p class="dek">Ask the model a text question, measure how long until it replies and how fast it writes. Five prompt types, warm-up plus repeated runs, six thread counts. This part finished cleanly.</p>
+
+  <div class="nums">
+    <div class="num-cell"><div class="num-v">~1.17<small> tok/s</small></div><div class="num-l">Writing speed</div><div class="num-s">mean across all measured runs &middot; range 0.87&ndash;1.37</div></div>
+    <div class="num-cell"><div class="num-v">28.4<small> s</small></div><div class="num-l">Model load time</div><div class="num-s">one-off, at startup</div></div>
+    <div class="num-cell"><div class="num-v">1.23<small> GB</small></div><div class="num-l">RAM left after load</div><div class="num-s">down from 4.99 GB free</div></div>
+    <div class="num-cell"><div class="num-v">682<small> s</small></div><div class="num-l">Worst-case first reply</div><div class="num-s">11.4 min, on a ~1000-token prompt</div></div>
+  </div>
+
+  <h3>Time to first word, by prompt &mdash; first time vs. repeat</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Prompt</th><th>First time (cold)</th><th>Repeat (cached)</th></tr></thead>
+      <tbody>
+        <tr><td>Short question</td><td class="num">4.8 s</td><td class="num">2.6 s</td></tr>
+        <tr><td>Medium question</td><td class="num bad">32.7 s</td><td class="num">2.9 s</td></tr>
+        <tr><td>Long document (~1038 tokens)</td><td class="num bad">682.4 s (11.4 min)</td><td class="num">2.8 s</td></tr>
+        <tr><td>Vendor-extraction-style prompt</td><td class="num bad">83.1 s</td><td class="num">3.1 s</td></tr>
+        <tr><td>Reasoning / arithmetic prompt</td><td class="num bad">36.0 s</td><td class="num">7.4 s</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <p>The cold column is the honest one: a real user always sends a prompt the model hasn't seen. Feeding it a full page of OCR text &mdash; the actual vendor-extraction use case &mdash; lands closest to the 11-minute row, not the 3-second one.</p>
+  </div>
+
+  <div class="caveat">
+    <span class="lbl">Checked and disclosed, not hidden</span>
+    <p>The "repeat" column looks fast partly because the server automatically reuses computation from an identical earlier prompt &mdash; confirmed directly in the run logs (<code>tokens_cached</code> rising across repeats), not assumed. One repeat run even cut off after 2 output tokens because the cache made the model reach a stopping point almost instantly. This was investigated specifically, not averaged away quietly: it doesn't change the cold numbers, but the repeat column should be read as "best case, seen before," not typical repeat performance.</p>
+  </div>
+
+  <h3>Thread scaling &mdash; more cores stopped helping, then made it worse</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Threads</th><th>Reading tok/s</th><th>Writing tok/s</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="num">0.09</td><td class="num">0.27</td><td>Effectively unusable</td></tr>
+        <tr><td class="num">2</td><td class="num">0.57</td><td class="num">0.54</td><td></td></tr>
+        <tr><td class="num">4</td><td class="num">1.07</td><td class="num">1.00</td><td>Big jump from 1 thread</td></tr>
+        <tr><td class="num">7</td><td class="num">1.59</td><td class="num">1.34</td><td></td></tr>
+        <tr><td class="num">13</td><td class="num">1.81</td><td class="num">1.47</td><td class="good">Best &mdash; matches physical core count</td></tr>
+        <tr><td class="num">20</td><td class="num">1.83</td><td class="num bad">0.93</td><td class="bad">All logical threads &mdash; writing speed drops</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <p>13 threads (this CPU's physical core count) gave the best writing speed. Using all 20 logical threads made writing <em>slower</em>, not faster. The model is limited by memory bandwidth, not core count &mdash; throwing more threads at it past ~13 actively hurts.</p>
+  </div>
+
+  <h3>CPU-only &mdash; verified, not assumed</h3>
+  <div class="col">
+    <ul class="tight">
+      <li><code>--list-devices</code> on this binary returns <code>(none)</code> &mdash; no GPU backend is compiled in at all, so GPU use is mechanically impossible, not just unrequested.</li>
+      <li><code>-ngl 0</code> passed explicitly on every single run.</li>
+      <li>Server log confirms only a CPU backend loaded: <code>ggml-cpu-alderlake.dll</code>, no CUDA/Vulkan/Metal anywhere.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ VISION PATH ============ -->
+<section id="vision">
+  <h2>2. Vision (image-input) path &mdash; attempted, did not complete <span class="chip chip-fail">Failed mid-run</span></h2>
+  <p class="dek">A manager flagged that this model is multimodal and suggested feeding page images directly to it instead of running OCR first. That claim was verified as true &mdash; but the actual CPU test of it broke before producing a usable result.</p>
+
+  <div class="plain">
+    <span class="lbl">Multimodal claim &mdash; confirmed real</span>
+    <p>The model repo contains real projector files (<code>mmproj-Q8_0.gguf</code>, 629 MB), the runtime fork supports a <code>--mmproj</code> flag specifically for this model, and the base architecture (Qwen3.5) is natively vision-capable. This is not a guess &mdash; the server's own startup log identified it as a "Qwen-VL" model unprompted.</p>
+  </div>
+
+  <h3>What was tried</h3>
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-time">~47 s</div>
+      <div><div class="tl-t">Vision model loads successfully</div><div class="tl-d">Text weights + mmproj both loaded CPU-only, verified via the same <code>--list-devices</code>/<code>-ngl 0</code> check as the text path. Load took 47s vs. 28s text-only &mdash; the extra vision component adds real startup cost.</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">real doc</div>
+      <div><div class="tl-t">Test image: an actual GST certificate</div><div class="tl-d">Rendered from a real uploaded vendor document at the same 200 DPI the production pipeline uses &mdash; not a synthetic test image.</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">~1 min</div>
+      <div><div class="tl-t">Early progress looked consistent with the text benchmark</div><div class="tl-d">Server's own progress log showed image-prompt processing at ~1.4 tok/s &mdash; the same rate measured for text &mdash; implying a single page image was encoding to roughly 4,000+ tokens. At that rate the image alone would need 45+ minutes just to finish processing, before any reply started.</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">6+ min</div>
+      <div><div class="tl-t">Request got stuck, not just slow</div><div class="tl-d">Server log filled with a repeating warning &mdash; <code>non-consecutive token position 79 after 79</code> &mdash; with zero forward progress for over six minutes. This is a different failure mode from "slow": the request was not advancing at all.</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">stopped</div>
+      <div><div class="tl-t">Test halted deliberately</div><div class="tl-d">Free RAM had dropped to ~516 MB (down from ~4.5 GB) with both model components loaded, and the stuck request was providing no useful data while holding that memory. The process was killed rather than left to keep consuming RAM for a result it clearly wasn't going to produce. RAM recovered to 4.5 GB immediately on stopping it.</div></div>
+    </div>
+  </div>
+
+  <div class="fail">
+    <span class="lbl">Bottom line on vision</span>
+    <p>No usable timing or accuracy number exists yet for the image-input path. What's known: it loads, it starts processing, and it hits an error loop before finishing &mdash; on the exact CPU-only configuration that already proved too slow for text alone. The one thing the partial data does suggest is that a single document image likely costs many times more prompt-processing effort than an equivalent page of OCR'd text would, which is a bad sign even before considering whether it would work at all.</p>
+  </div>
+</section>
+
+<!-- ============ LIMITATIONS ============ -->
+<section id="limitations">
+  <h2>3. Limitations of everything measured</h2>
+  <div class="col">
+    <ul class="tight">
+      <li><strong>Single machine, single CPU model.</strong> All numbers are specific to this i7-12700H. The runtime binary is portable across x86_64 CPUs (it self-selects the right SIMD path at startup), but performance is not &mdash; a different CPU will give different numbers.</li>
+      <li><strong>RAM is tight on this machine.</strong> Text-only: 1.23 GB free after load. With vision added: as low as ~516 MB. A busier machine, or one with less RAM to begin with, risks swapping to disk, which would make results worse, not just unchanged.</li>
+      <li><strong>Only one quantization tested.</strong> PTQ1_0 was chosen because it's the only variant with an optimized CPU code path; the other available quantization (PQ2_0) has no such optimization and would only be slower, for a larger file and worse RAM cost &mdash; so it wasn't downloaded.</li>
+      <li><strong>Repeat-run numbers are optimistic</strong> due to server-side prompt caching (see the caveat above) &mdash; cold numbers are the ones that reflect real usage.</li>
+      <li><strong>The vision path is entirely unverified</strong> for both speed and accuracy &mdash; it neither confirmed nor ruled out feasibility, it just didn't finish.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ WHAT REMAINS OPEN ============ -->
+<section id="open">
+  <h2>4. What remains to be seen</h2>
+  <div class="col">
+    <ul class="tight">
+      <li><strong>Why the vision request got stuck.</strong> Not yet diagnosed. The server itself suggested a possible fix in its own startup warning (<code>--image-min-tokens 1024</code>), which was never tried. Worth one retry with that flag before concluding the vision path is unusable, rather than concluding it from a single failed attempt.</li>
+      <li><strong>Real vision-path latency, if it can be made to complete at all.</strong> No cold TTFT, no tokens/sec, no comparison to the text path exists yet.</li>
+      <li><strong>Vision-path accuracy</strong>, independent of speed &mdash; whether a heavily compressed (1.75-bit) model can read a scanned invoice as reliably as the existing OCR engine. This is a completely separate question from whether it's fast enough, and neither has been answered.</li>
+      <li><strong>Speculative decoding</strong>, raised as a possible optimization by the manager, with his own caveat that it's unproven for multimodal models. Not investigated &mdash; explicitly out of scope while the base speed question was still open, and doubly so now that the vision path hasn't even produced a first result.</li>
+      <li><strong>PQ2_0 quantization</strong> &mdash; deliberately not tested; would only be slower per available evidence, so left untested unless something changes that assumption.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ PIPELINE ============ -->
+<section id="pipeline">
+  <h2>5. Where this stands with the Vendor Extractor pipeline</h2>
+  <div class="col">
+    <p>An opt-in hook exists (<code>llm_matcher.py</code>) that lets the text-generation path propose field values alongside the existing rule-based matcher, off by default. It changes nothing in normal operation &mdash; it must be turned on explicitly with a flag, and even then its guesses are scored low enough that a real rule-based match always wins; it only fills in fields nothing else found.</p>
+    <p>No pipeline code uses the vision path in any way. Given it hasn't produced a working result yet, that would be premature.</p>
+  </div>
+
+  <div class="verdict">
+    <span class="lbl">Overall verdict, given everything above</span>
+    <p class="big">Text generation is confirmed too slow for interactive use. The vision path is unproven, and what little data exists points toward it being worse, not better &mdash; but that is not yet a settled result.</p>
+    <p>~1.1&ndash;1.2 tokens/sec and up to 11.4 minutes to first reply on the text path is roughly two orders of magnitude short of usable interactive speed. The vision path was supposed to be the more promising angle raised this session, but the one real attempt at it broke before answering the question either way.</p>
+  </div>
+</section>
+
+<footer>
+  All text-path figures measured on this machine, CPU-only (<code>-ngl 0</code>, no GPU backend compiled in, verified via <code>--list-devices</code>). Model <code>Ternary-Bonsai-2-27B-PTQ1_0.gguf</code> + <code>mmproj-Q8_0.gguf</code>, PrismML llama.cpp build 10709 / commit 9a9394a, Clang 20.1.8. Vision-path figures are partial/incomplete as noted above.
+</footer>
+
+</div>

@@ -140,3 +140,43 @@ class ExcelMapper:
     def cells_for(self, sheet_name: Optional[str] = None) -> list[tuple[str, str, Optional[str]]]:
         """(field, cell, sheet) triples, for the verifier."""
         return [(m.field, m.cell, m.sheet or sheet_name) for m in self.mappings]
+
+    # -- reading (no writes) --------------------------------------------
+
+    def read_values(self, xlsx_path: str, sheet_name: Optional[str] = None) -> dict[str, str]:
+        """Read every mapped cell out of an EXISTING workbook, as-is.
+
+        Read-only: unlike `fill()`, nothing here is written back to the file
+        or even held open past the read. Used to capture what a vendor
+        actually filled in on their own uploaded Excel form BEFORE `fill()`
+        overwrites those same cells with our extracted values -- otherwise
+        the vendor's original entries are gone the moment we write our own
+        template output over them, and there is nothing left to compare our
+        OCR result against.
+
+        Returns {field: normalised_text_value}; a cell that is empty, or a
+        field this mapping doesn't cover, is simply absent from the dict
+        (never an empty string standing in for "unmapped").
+        """
+        workbook = openpyxl.load_workbook(xlsx_path, data_only=True)
+        try:
+            values: dict[str, str] = {}
+            for field, cell, sheet in self.cells_for(sheet_name):
+                target = sheet or workbook.sheetnames[0]
+                if target not in workbook.sheetnames:
+                    continue
+                raw = workbook[target][cell].value
+                if raw is None:
+                    continue
+                text = str(raw).strip()
+                # openpyxl reads a numeric cell (e.g. a PIN code) back as a
+                # float -- "700019" becomes "700019.0" -- so this matches
+                # verifier._normalize()'s own float-tail trim, keeping the
+                # two comparisons consistent.
+                if text.endswith(".0") and text[:-2].isdigit():
+                    text = text[:-2]
+                if text:
+                    values[field] = text
+            return values
+        finally:
+            workbook.close()

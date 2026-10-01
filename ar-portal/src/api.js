@@ -219,6 +219,15 @@ export function deleteCustomer(id)         { return authFetch(`/customers/${id}`
 export function getVendorBcPayload(id)      { return authJson(`/business-central/vendors/${id}/payload`, 'GET') }
 export function markVendorPushed(id, bcNo)  { return authJson(`/business-central/vendors/${id}/mark-pushed`, 'PATCH', { bc_no: bcNo }) }
 
+/** One-click confirmation of an Address / Address 2 re-layout. The server
+ *  accepts only the SAME address text re-split (nothing added, dropped or
+ *  reordered) that fits Business Central's limits; 422 otherwise. See
+ *  docs/ADDRESS_SEGMENTATION_PLAN.md section 7. */
+export function confirmVendorAddress(id, address1, address2) {
+  return authJson(`/business-central/vendors/${id}/address-review/confirm`, 'POST',
+    { address_1: address1, address_2: address2 })
+}
+
 /** Same manual-push flow as the vendor pair above, for a saved customer --
  *  see backend/app/routers/business_central.py. */
 export function getCustomerBcPayload(id)     { return authJson(`/business-central/customers/${id}/payload`, 'GET') }

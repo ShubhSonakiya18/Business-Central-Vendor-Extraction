@@ -1,0 +1,59 @@
+{
+  "vocab_size": 2040,
+  "n_scored": 136576,
+  "mean_by_perturbation": {
+    "boundary_shift_left1": {
+      "tfidf_cosine": 0.7798052246408126,
+      "token_jaccard": 0.7230535515873017,
+      "fuzzy_ratio": 0.8345774826107346
+    },
+    "boundary_shift_left2": {
+      "tfidf_cosine": 0.6250138596395626,
+      "token_jaccard": 0.5127207696451782,
+      "fuzzy_ratio": 0.6392066376070304
+    },
+    "boundary_shift_right1": {
+      "tfidf_cosine": 0.8763617615395537,
+      "token_jaccard": 0.7996260642135642,
+      "fuzzy_ratio": 0.8630152915707257
+    },
+    "boundary_shift_right2": {
+      "tfidf_cosine": 0.7827517852164783,
+      "token_jaccard": 0.6642446213322134,
+      "fuzzy_ratio": 0.7608863789673542
+    },
+    "case_change": {
+      "tfidf_cosine": 1.0,
+      "token_jaccard": 1.0,
+      "fuzzy_ratio": 0.46356270008445016
+    },
+    "clean": {
+      "tfidf_cosine": 1.0,
+      "token_jaccard": 1.0,
+      "fuzzy_ratio": 1.0
+    },
+    "token_duplicate": {
+      "tfidf_cosine": 0.9593608537693448,
+      "token_jaccard": 1.0,
+      "fuzzy_ratio": 0.8754532023415188
+    }
+  },
+  "correlation_matrix": {
+    "tfidf_cosine": {
+      "tfidf_cosine": 1.0,
+      "token_jaccard": 0.903408479794967,
+      "fuzzy_ratio": 0.47494137455286733
+    },
+    "token_jaccard": {
+      "tfidf_cosine": 0.903408479794967,
+      "token_jaccard": 1.0,
+      "fuzzy_ratio": 0.45503361540780607
+    },
+    "fuzzy_ratio": {
+      "tfidf_cosine": 0.47494137455286733,
+      "token_jaccard": 0.45503361540780607,
+      "fuzzy_ratio": 1.0
+    }
+  },
+  "pct_rows_diverging_gt_0.15": 0.1524133083411434
+}

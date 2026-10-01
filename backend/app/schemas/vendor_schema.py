@@ -125,6 +125,10 @@ class VendorOut(VendorBase):
     bc_no: str | None = None
     bc_synced_at: datetime | None = None
     fields_needing_review: list[str] | None = None
+    # Read-only: set by the address-review confirm endpoint, never accepted
+    # from a create/update payload (VendorCreate/VendorUpdate have no such
+    # field, so a client cannot claim a confirmation it did not make).
+    address_review: dict[str, Any] | None = None
     created_by_user_id: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

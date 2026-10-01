@@ -1,0 +1,26 @@
+{
+  "random_state": 42,
+  "test_fraction": 0.2,
+  "min_support": 5,
+  "n_train": 80000,
+  "n_test": 20000,
+  "component_sequence_unique_pct": 1.0,
+  "rule_a_holds_on_training_pct": 1.0,
+  "n_distinct_shapes_in_training": 80000,
+  "n_trusted_lookup_entries": 0,
+  "training_coverage_by_trusted_lookup_pct": 0.0,
+  "in_training_accuracy_upper_bound": 0.187175,
+  "held_out_accuracy": 0.1874,
+  "held_out_accuracy_by_source": {
+    "n": {
+      "fallback_rule_a": 20000.0
+    },
+    "accuracy": {
+      "fallback_rule_a": 0.1874
+    }
+  },
+  "held_out_reconstruction_ok_pct": 1.0,
+  "held_out_token_sequence_ratio_agree_pct": 0.1874,
+  "mode_baseline_accuracy_held_out": 0.3159,
+  "improvement_over_mode_baseline": -0.1285
+}

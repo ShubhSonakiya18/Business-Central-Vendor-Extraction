@@ -24,7 +24,7 @@ import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # --- Paths -----------------------------------------------------------------
@@ -85,6 +85,16 @@ class Settings(BaseSettings):
     BC_VENDOR_POSTING_GROUP: str = ""
     BC_CUSTOMER_POSTING_GROUP: str = ""
 
+    # -- BC address representation layer ---------------------------------
+    # See docs/ADDRESS_SEGMENTATION_PLAN.md. BC_TARGET_PROFILE names the YAML
+    # in backend/config/bc_targets/ that supplies BC's field-length limits.
+    # Both feature flags default OFF: with them off, address segmentation and
+    # the BC payload endpoints are byte-for-byte identical to today's
+    # behaviour (see tests/test_address_bc_invariants.py's flag-off guard).
+    BC_TARGET_PROFILE: str = "bc22_in_vendorcard"
+    BC_ADDRESS_LAYER_ENABLED: bool = False
+    BC_PAYLOAD_GATE_ENABLED: bool = False
+
     # -- GSTIN live verification (gstinapi.in) --------------------------
     # Confirms a GSTIN is actually registered/active in the GST registry --
     # separate from validator.py's regex/checksum format check, which never
@@ -131,6 +141,20 @@ class Settings(BaseSettings):
         if v not in VALID_ENVS:
             raise ValueError(f"ENV must be one of {VALID_ENVS}, got {v!r}")
         return v
+
+    @model_validator(mode="after")
+    def _address_layer_needs_gate(self) -> "Settings":
+        # The address layer can move the Address / Address 2 line break to fit
+        # Business Central (ADDRESS_BC_LENGTH_REBALANCE). That change must be
+        # confirmed by a person before push, and only the payload gate
+        # enforces the confirmation -- so the layer on with the gate off would
+        # let a rebalanced address reach BC unconfirmed. Refuse to start.
+        if self.BC_ADDRESS_LAYER_ENABLED and not self.BC_PAYLOAD_GATE_ENABLED:
+            raise ValueError(
+                "BC_ADDRESS_LAYER_ENABLED=true requires BC_PAYLOAD_GATE_ENABLED=true "
+                "(see docs/ADDRESS_SEGMENTATION_PLAN.md section 7)"
+            )
+        return self
 
     @property
     def is_production(self) -> bool:

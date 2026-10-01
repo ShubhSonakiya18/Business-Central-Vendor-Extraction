@@ -1,9 +1,14 @@
-"""Address LINE segmentation -- address_1 / address_2 / address_3(+overflow_4).
+"""Address LINE segmentation -- address_1 / address_2 (Business Central shape).
 
 Turns the LEFTOVER of `address_resolver.resolve_address_blob()` -- i.e. every
 fragment that is NOT the pin code, state, city or country, which have already
-been peeled off before this module ever sees the input -- into up to four
-ordered address lines, for the vendor path only.
+been peeled off before this module ever sees the input -- into exactly two
+address lines: Address 1 (the vendor's specific premise/unit/internal-
+property identifier) and Address 2 (everything else describing where that
+premise sits -- street, sector, phase, industrial area, locality). This is
+the Business Central shape: Address 1, Address 2, City, State, Country, PIN.
+`address_3`/`address_4` remain on `SegmentedAddress` for interface-shape
+compatibility only and are never populated by this workflow.
 
 Why simple comma splitting is insufficient
 -------------------------------------------
@@ -13,13 +18,13 @@ A raw address blob like
      CHANDIBAGAN, ANDUL, NATIBPUR"
 
 has 7 comma-separated segments that mix two genuinely different kinds of
-information: WHERE INSIDE THE PROPERTY (floor/block/building/estate name) and
-WHICH NEIGHBOURHOOD (a run of locality names). `address.split(",")[:N]` or
-"first N segments / last N segments" cannot distinguish these -- the boundary
-between them moves depending on how many premises-tokens and how many
-locality-tokens a given address happens to have, and neither count is fixed.
+information: WHERE INSIDE THE PROPERTY (floor/block) and WHICH NEIGHBOURHOOD
+(estate name, then a run of locality names). `address.split(",")[:N]` or
+"first N segments" cannot distinguish these -- the boundary between them
+moves depending on how many premises-tokens a given address happens to have,
+and that count is not fixed.
 
-The chosen algorithm: classify, then find boundaries, then group in place
+The chosen algorithm: classify, assign a role, cut once
 ---------------------------------------------------------------------------
 1. **normalize** -- comma/newline-split segments arrive as given from the
    caller (already produced by `address_resolver._segments()`).
@@ -32,34 +37,38 @@ The chosen algorithm: classify, then find boundaries, then group in place
    fragment independently, from its own text alone, against the keyword tiers
    in `segmentation_keywords.yaml` (premises_unit, structural, building_name,
    estate_zone, thoroughfare, landmark, locality, village_po). A fragment with
-   no keyword match is `unknown`, treated as a likely locality name (see the
-   module-level note on why that default is deliberate, not a failure).
-4. **logical boundary inference** -- `_gap_strength()` scores the GAP between
-   each pair of ADJACENT fragments (never fragments further apart), based on
-   whether the semantic level increases, whether the tier changes, and
-   whether either side was comma-less-injected. A gap scoring above
-   `boundary_strength` (default 0.5, tunable in the YAML) is a cut.
-5. **source-order-preserving grouping** -- groups are the CONTIGUOUS runs
-   between cuts, in the fragments' original order. There is no bucketing step
-   and no sort: fragments are never moved past one another. Concatenating the
-   groups back together reproduces the input sequence exactly (see the
-   `test_address_segmenter.py` invariant sweep, I3).
-6. **packing** -- surviving groups become `address_1`, `address_2`,
-   `address_3` in order; a 4th group (rare) becomes `address_4`, used only as
-   an overflow/safety valve, never a normal target. If confidence is low, or
-   there are more than 4 groups, adjacent groups are MERGED (never dropped)
-   starting with the weakest boundary.
+   no keyword match is `unknown`.
+4. **role assignment** -- `_address_role()` maps each fragment's tier (and, for
+   the one genuinely mixed tier, `structural`, its matched keyword) to
+   ADDRESS_1 or ADDRESS_2. Tier says what a fragment IS; role says which BC
+   field it belongs in -- these are deliberately separate. premises_unit and
+   structural (except `phase`/`ph`, which is locality-scale) are ADDRESS_1;
+   everything else, including `unknown`, is ADDRESS_2. See `_TIER_ROLE` and
+   `_ADDRESS_2_STRUCTURAL_KEYWORDS`.
+5. **single final boundary, never reopened** -- `_split_by_role()` takes
+   Address 1 as the INITIAL CONTIGUOUS run of ADDRESS_1-role fragments only.
+   The moment a non-ADDRESS_1-role fragment appears, the boundary is final:
+   every fragment after it goes to Address 2, even one that would itself
+   have classified ADDRESS_1-role in isolation ("Flat 402, Tower B, Sunrise
+   Apartments, Block C, Sector 10" -> Address 1 = "Flat 402, Tower B",
+   Address 2 = "Sunrise Apartments, Block C, Sector 10" -- "Block C" does NOT
+   rejoin Address 1). No fragment is ever moved relative to any other
+   fragment's source position.
+6. **no-premise fallback, order-preserving** -- if no fragment at the very
+   start is ADDRESS_1-role, Address 1 is empty UNLESS fragment 0 itself is
+   thoroughfare-tier, in which case it alone becomes Address 1 (medium
+   confidence, `no_premise_identifier_fallback`). The fallback never promotes
+   a fragment other than index 0 -- doing so would move it ahead of whatever
+   precedes it, which this module never does. If fragment 0 isn't
+   thoroughfare-tier either, Address 1 stays empty and the WHOLE leftover
+   becomes Address 2, unmodified, at low confidence -- never invent a premise
+   identifier the source text doesn't contain.
 
 Ordering
 --------
-Fragments are never reordered relative to the source. `"ANDUL, 3RD FLOOR"`
-comes back as `address_1="ANDUL"`, `address_2="3RD FLOOR"` -- the unusual
-order is preserved because the source document wrote it that way.
+Fragments are never reordered relative to the source, and never dropped.
 Classification is a PURE function of each fragment's own text (no neighbour,
-no index) -- see `classify_fragment()` -- which is what makes two differently
--ordered addresses ("3RD FLOOR, BLOCK B, UNIT 302" vs "UNIT 302, BLOCK B,
-3RD FLOOR") group SEMANTICALLY identically: same multiset of components per
-line, each rendered in its own source order.
+no index) -- see `classify_fragment()`.
 
 Ambiguity and ambiguous fragments
 ----------------------------------
@@ -67,35 +76,18 @@ A fragment matching more than one tier's keywords (e.g. "NEAR GIDC ROAD")
 is resolved via a fixed conflict-priority list and its confidence is capped
 at 0.5 (see `_CONFLICT_CONFIDENCE_CAP`). Overall confidence is `high` /
 `medium` / `low` -- the SAME three-level vocabulary `ResolvedAddress` and
-`app/eval/eval_address.py` already use. Low confidence caps the address at 2
-lines; any comma-less-injected boundary or any locality-tail-split caps it at
-3 -- see `_LINE_CAP` and the explicit caps applied in `segment_leftover()`.
-At the degenerate limit (no keyword evidence anywhere, fully injected) the
-result collapses to a SINGLE line -- byte-identical to this project's
-pre-segmenter behaviour. That is a deliberate safety property: the worst case
-of this module is the behaviour that shipped before it existed.
-
-The locality-tail-split -- a heuristic, not a geographic rule
-----------------------------------------------------------------
-Indian addresses often narrow -> broaden toward the city, so the LAST of a
-long run of locality-level fragments is sometimes the village/post-office
-tier. `_maybe_tail_split()` peels that last fragment into its own group, but
-ONLY when the trailing locality run has at least `min_localities_for_tail_split`
-members (default 4) -- so the common 2-3-locality case
-("Koramangala, HSR Layout, Bengaluru") is left together, untouched, by
-design. This is explicitly a positional guess with no gazetteer behind it in
-the default configuration; it is not claimed to generalize to "the last
-locality before a city is always administratively distinct," and any address
-it fires on is capped at `medium` confidence and flagged
-`locality_tail_split_inferred` so it is reviewable, never presented as a
-confident claim.
+`app/eval/eval_address.py` already use. At the degenerate limit (no keyword
+evidence anywhere, no thoroughfare-tier fragment at position 0) Address 1 is
+empty and the whole leftover becomes Address 2 -- a safe, honest fallback
+rather than a guess.
 
 Performance
 -----------
-Classification is a handful of dict lookups per token; grouping is O(n) over
-at most a few dozen fragments. No regex scanning over the full keyword set,
-no network, no model. See `test_address_segmenter.py::TestPerformance` for
-the measured latency (target: sub-millisecond median per address).
+Classification is a handful of dict lookups per token; the role split is a
+single O(n) prefix scan over at most a few dozen fragments. No regex
+scanning over the full keyword set, no network, no model. See
+`test_address_segmenter.py::TestPerformance` for the measured latency
+(target: sub-millisecond median per address).
 
 Known limitations
 ------------------
@@ -149,16 +141,6 @@ _UNKNOWN_LEVEL = 4
 _PREMISES_BAND_MAX = 2
 
 _LEVEL_ORDER = {"low": 0, "medium": 1, "high": 2}
-_LINE_CAP = {"high": 4, "medium": 3, "low": 2}
-
-
-def _locality_level(kw: dict | None) -> int:
-    """The level the data assigns to `locality`, which is also the level an
-    `unknown` fragment takes. Read from the data rather than hardcoded so a
-    future renumbering of the tier levels stays a data-only change."""
-    tiers = (kw or {}).get("tiers") or {}
-    lvl = (tiers.get("locality") or {}).get("level")
-    return lvl if isinstance(lvl, int) else _UNKNOWN_LEVEL
 
 
 
@@ -200,6 +182,26 @@ class SegmentedAddress:
     confidence: str = "low"
     score: float = 0.0
     notes: list[str] = _dc_field(default_factory=list)
+    # Additive fields for the BC address representation layer (see
+    # docs/ADDRESS_SEGMENTATION_PLAN.md §2/§4/§12). Neither field changes
+    # this module's own output -- `_split_by_role` and the rest of
+    # `segment_leftover` are untouched; these two fields only EXPOSE facts
+    # `_split_by_role` already computed, so `address_representation.py` can
+    # build a SemanticLayout without re-deriving them.
+    #
+    # semantic_boundary: the boundary `_split_by_role` found BEFORE any
+    # no-premise fallback ran -- i.e. the length of the initial contiguous
+    # ADDRESS_1-role run. This is 0 whenever `fallback_applied` is True
+    # (both the thoroughfare and the "no boundary at all" cases start from
+    # boundary 0 -- see _split_by_role's docstring). It is NOT the same as
+    # `len(groups[0])`, which already reflects _split_by_role's own
+    # thoroughfare fallback.
+    semantic_boundary: int = 0
+    # fallback_applied: True when _split_by_role's OWN thoroughfare fallback
+    # fired (fragment 0 promoted to Address 1 because no ADDRESS_1-role run
+    # existed at all). This is the `leading_thoroughfare` variant of the
+    # plan's step-5 presentation fallback -- see address_representation.py.
+    fallback_applied: bool = False
 
     def get(self, n: int) -> str:
         """1-based line accessor (`get(1)` == address_1); '' past the end."""
@@ -901,60 +903,6 @@ def _gap_strength(a: Fragment, b: Fragment) -> float:
     return max(0.0, strength)
 
 
-def _initial_groups(fragments: list[Fragment], threshold: float) -> list[list[Fragment]]:
-    if not fragments:
-        return []
-    groups: list[list[Fragment]] = [[fragments[0]]]
-    for i in range(1, len(fragments)):
-        prev, cur = fragments[i - 1], fragments[i]
-        if _gap_strength(prev, cur) >= threshold:
-            groups.append([cur])
-        else:
-            groups[-1].append(cur)
-    return groups
-
-
-def _maybe_tail_split(
-    groups: list[list[Fragment]], min_run: int, locality_level: int = _UNKNOWN_LEVEL
-) -> tuple[list[list[Fragment]], bool]:
-    """Peel the LAST fragment of a trailing locality-level run in
-    the final group into its own group -- ONLY when that run has at least
-    `min_run` members AND at least one other group exists before it. See the
-    module docstring's "locality-tail-split" section: this is a heuristic,
-    not a geographic rule, and the common 2-3-locality case is deliberately
-    left untouched.
-
-    The `len(groups) > 1` requirement is a deliberate, additional
-    conservatism check, not just the count threshold: a bare list of 4+
-    locality-like names with NOTHING else in the address (no premises,
-    street, or estate content establishing a "head" for the address) reads
-    as a set of co-equal area names, not a narrow-to-broad progression --
-    there is no signal here that the LAST one specifically is
-    administratively distinct from the other three, so this heuristic does
-    not guess. It only fires when an earlier, already-distinguished group
-    exists, giving the trailing run something to narrow FROM. This is what
-    keeps a bare "Andheri, Vile Parle, Santacruz, Bandra" (four co-equal
-    Mumbai localities, no other content) together as one line, while the
-    worked example (which has real premises content before its 4-locality
-    run) still splits -- see test_address_segmenter.py's dedicated
-    "localities stay together" cases, including a 4-fragment one."""
-    if len(groups) <= 1:
-        return groups, False
-    last = groups[-1]
-    run_len = 0
-    for f in reversed(last):
-        if f.level >= locality_level:
-            run_len += 1
-        else:
-            break
-    if run_len < min_run:
-        return groups, False
-    remainder, peeled = last[:-1], last[-1:]
-    if not remainder:
-        return groups, False
-    return groups[:-1] + [remainder, peeled], True
-
-
 def _confidence_level(score: float, kw: dict) -> str:
     th = kw.get("thresholds", {})
     hi = th.get("confidence_high", 0.70)
@@ -964,6 +912,90 @@ def _confidence_level(score: float, kw: dict) -> str:
     if score >= lo:
         return "medium"
     return "low"
+
+
+# ---------------------------------------------------------------------------
+# Address 1 / Address 2 role mapping
+# ---------------------------------------------------------------------------
+# A fragment's TIER (from classify_fragment) says what kind of thing it is;
+# its ROLE says which Business Central field it belongs in. These are
+# deliberately kept separate: tier is a stable, reusable classification,
+# while role is a business decision that can change without touching
+# classification. See the module docstring's "Address 1 / Address 2" section
+# for the worked examples that drove this split.
+#
+# `structural` is the one tier that is NOT uniformly one role: TOWER/BLOCK/
+# WING/PART/BLDG are internal designators identifying which part of the
+# vendor's OWN premises they're in ("TOWER B" -> Address 1), but PHASE is a
+# locality-scale subdivision of a larger development, not part of the unit
+# identifier itself ("PHASE 8B" -> Address 2) -- even though the keyword YAML
+# groups all of them under one tier for classification purposes. This is the
+# one place role needs to inspect the matched keyword, not just the tier.
+_ADDRESS_2_STRUCTURAL_KEYWORDS = {"phase", "ph"}
+
+ADDRESS_1 = "ADDRESS_1"
+ADDRESS_2 = "ADDRESS_2"
+
+_TIER_ROLE = {
+    "premises_unit": ADDRESS_1,
+    "structural": ADDRESS_1,  # except phase/ph, handled in _address_role
+    "building_name": ADDRESS_2,  # a standalone named property describes locality, not the vendor's own unit
+    "estate_zone": ADDRESS_2,
+    "thoroughfare": ADDRESS_2,
+    "landmark": ADDRESS_2,
+    "locality": ADDRESS_2,
+    "village_po": ADDRESS_2,
+    _UNKNOWN_TIER: ADDRESS_2,  # never auto-promoted to Address 1 by position -- no evidence of premise identity
+}
+
+
+def _matched_keyword(evidence: str) -> str:
+    """Extract the matched keyword from a classify_fragment() evidence string
+    ("head:phase" -> "phase", "tail:towers" -> "towers"). Returns "" for
+    evidence strings with no keyword component (e.g. "shape:designator")."""
+    if ":" not in evidence:
+        return ""
+    return evidence.split(":", 1)[1].split("+", 1)[0]
+
+
+def _address_role(tier: str, evidence: str) -> str:
+    """ADDRESS_1 or ADDRESS_2 for a single fragment, given its tier and
+    evidence from classify_fragment(). Pure function, no position/neighbour
+    input -- keeps role assignment as auditable as classification itself."""
+    if tier == "structural" and _matched_keyword(evidence) in _ADDRESS_2_STRUCTURAL_KEYWORDS:
+        return ADDRESS_2
+    return _TIER_ROLE.get(tier, ADDRESS_2)
+
+
+def _split_by_role(fragments: list[Fragment]) -> tuple[list[Fragment], list[Fragment], bool]:
+    """Address 1 = the INITIAL CONTIGUOUS run of ADDRESS_1-role fragments.
+    The moment a non-ADDRESS_1-role fragment is reached, the boundary is
+    final: every fragment after it goes to Address 2, REGARDLESS of what role
+    that later fragment would have been assigned in isolation. This
+    guarantees the output is always exactly two contiguous, source-ordered
+    regions -- no fragment is ever moved relative to any other fragment's
+    source position. Returns (address_1_fragments, address_2_fragments,
+    fallback_applied)."""
+    boundary = 0
+    for f in fragments:
+        if _address_role(f.tier, f.evidence) != ADDRESS_1:
+            break
+        boundary += 1
+
+    if boundary > 0:
+        return fragments[:boundary], fragments[boundary:], False
+
+    # No premise identifier at all. The no-premise fallback may ONLY promote
+    # fragment 0 itself, and only when fragment 0 is thoroughfare-tier --
+    # never a later fragment, which would reorder content ahead of whatever
+    # precedes it. See module docstring: reordering is never an acceptable
+    # trade for a fuller Address 1.
+    if fragments and fragments[0].tier == "thoroughfare":
+        return fragments[:1], fragments[1:], True
+
+    # No valid fallback either: Address 1 stays empty, nothing is dropped or
+    # reordered -- the entire leftover becomes Address 2.
+    return [], fragments, False
 
 
 # ---------------------------------------------------------------------------
@@ -1002,8 +1034,6 @@ def segment_leftover(segments: list[str], *, pin: str = "", district: str = "") 
 
     th = kw.get("thresholds", {}) if kw else {}
     min_tokens_for_injection = th.get("min_tokens_for_injection", 4)
-    boundary_strength = th.get("boundary_strength", 0.5)
-    min_run = th.get("min_localities_for_tail_split", 4)
 
     # Commas are authoritative: comma-less repair is only ever attempted when
     # the WHOLE leftover arrived as a single segment (i.e. the source string
@@ -1038,8 +1068,6 @@ def segment_leftover(segments: list[str], *, pin: str = "", district: str = "") 
     if not fragments:
         return SegmentedAddress(confidence="low", notes=["no address lines"])
 
-    groups = _initial_groups(fragments, boundary_strength)
-
     any_injected = any(f.injected for f in fragments)
     all_unknown = all(f.tier == _UNKNOWN_TIER for f in fragments)
 
@@ -1051,43 +1079,40 @@ def segment_leftover(segments: list[str], *, pin: str = "", district: str = "") 
     if any_injected and all_unknown:
         level = "low"
 
-    tail_split_applied = False
-    peeled_group_id: Optional[int] = None
-    if level != "low":
-        groups, tail_split_applied = _maybe_tail_split(
-            groups, min_run, _locality_level(kw)
-        )
-        if tail_split_applied:
-            level = _min_level(level, "medium")
-            notes.append("locality_tail_split_inferred")
-            # Remember which group the split peeled off. Its boundary is
-            # between two same-tier, same-level locality fragments, so
-            # _gap_strength scores it 0.0 -- it would ALWAYS be picked as the
-            # weakest and the merge below would silently undo the split it was
-            # just asked to make. Protected explicitly rather than by giving
-            # the peel a fake gap score, so the scoring function stays a pure
-            # function of the two fragments it is given.
-            peeled_group_id = id(groups[-1])
+    a1_fragments, a2_fragments, fallback_applied = _split_by_role(fragments)
+    if fallback_applied:
+        level = _min_level(level, "medium")
+        notes.append("no_premise_identifier_fallback")
+    elif not a1_fragments:
+        level = "low"
+        notes.append("no_premise_identifier")
 
-    cap = min(_LINE_CAP[level], 4)
-    while len(groups) > cap:
-        weakest_i, weakest_val = 0, None
-        for i in range(len(groups) - 1):
-            if peeled_group_id is not None and id(groups[i + 1]) == peeled_group_id:
-                continue
-            val = _gap_strength(groups[i][-1], groups[i + 1][0])
-            if weakest_val is None or val < weakest_val:
-                weakest_val, weakest_i = val, i
-        if weakest_val is None:
-            # Every remaining boundary is the protected one; give it up rather
-            # than loop forever or drop content.
-            weakest_i = len(groups) - 2
-        groups[weakest_i] = groups[weakest_i] + groups[weakest_i + 1]
-        del groups[weakest_i + 1]
-        notes.append(f"merged_group_at_{weakest_i}")
+    for f in a1_fragments:
+        notes.append(f"role: {f.text} -> {f.tier} ({f.evidence}) -> {ADDRESS_1}")
+    for f in a2_fragments:
+        notes.append(f"role: {f.text} -> {f.tier} ({f.evidence}) -> {ADDRESS_2}")
 
-    lines = [", ".join(f.text for f in g) for g in groups]
+    # Positional, not filtered: lines[0] is ALWAYS address_1 (possibly empty)
+    # and lines[1] is ALWAYS address_2 -- an empty Address 1 must never shift
+    # Address 2's content into the address_1 slot (SegmentedAddress.get() is
+    # purely positional). A trailing empty group is dropped from `lines` only
+    # when it wouldn't be positionally ambiguous, i.e. only address_2 is
+    # empty; an empty address_1 followed by non-empty address_2 keeps BOTH
+    # slots so get(1)=="" and get(2") holds the real content.
+    a1_text = ", ".join(f.text for f in a1_fragments)
+    a2_text = ", ".join(f.text for f in a2_fragments)
+    groups = [a1_fragments, a2_fragments]
+    if not a2_fragments:
+        groups = groups[:1]
+        lines = [a1_text] if a1_text else []
+    else:
+        lines = [a1_text, a2_text]
+    # See SegmentedAddress.semantic_boundary's docstring: 0 whenever
+    # _split_by_role's own thoroughfare fallback fired, otherwise the length
+    # of the initial contiguous ADDRESS_1-role run it found.
+    semantic_boundary = 0 if fallback_applied else len(a1_fragments)
     return SegmentedAddress(
         lines=lines, groups=groups, fragments=fragments,
         confidence=level, score=round(base_score, 3), notes=notes,
+        semantic_boundary=semantic_boundary, fallback_applied=fallback_applied,
     )

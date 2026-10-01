@@ -1,5 +1,5 @@
 # =============================================================================
-# VENDOR ADDRESS LINE SEGMENTATION -- 4-LINE CONVENTION
+# VENDOR ADDRESS LINE SEGMENTATION -- BUSINESS CENTRAL ADDRESS 1/ADDRESS 2
 # =============================================================================
 # Twenty industrial/commercial vendor addresses of the shape that arrives on a
 # GST REG-06 "Address of Principal Place of Business" line or a Udyam address
@@ -19,22 +19,26 @@
 # premises/building/street portion stays in address_1 as ONE string. That file
 # is the legacy baseline and must stay comparable, so it is not rewritten here.
 #
-# This file uses the 4-line convention the vendor path actually targets, and
-# scores `resolve_address_blob(multiline=True)` directly. Feeding the strings
-# straight in is deliberate: an earlier attempt to test these through rendered
-# PDF fixtures failed because headless-Chrome PDFs shatter a long uncaptioned
-# line into per-comma or per-word spans, so the segmenter never received the
-# line it exists to split. Calling the resolver directly tests the component in
-# question with nothing in between.
+# This file targets the Business Central Address 1/Address 2 shape the vendor
+# path actually needs, and scores `resolve_address_blob(multiline=True)`
+# directly. Feeding the strings straight in is deliberate: an earlier attempt
+# to test these through rendered PDF fixtures failed because headless-Chrome
+# PDFs shatter a long uncaptioned line into per-comma or per-word spans, so the
+# segmenter never received the line it exists to split. Calling the resolver
+# directly tests the component in question with nothing in between.
 #
 # -----------------------------------------------------------------------------
-# CONVENTION
+# CONVENTION (revised 2026-09 for the Address 1/Address 2 redesign)
 # -----------------------------------------------------------------------------
-#   address_1  premises designators -- flat/plot/unit/shop/office number,
-#              block, wing, part, floor.            "where in the building"
-#   address_2  the named property, estate or park.  "which building"
-#   address_3  locality / area / road.              "where in the city"
-#   address_4  overflow only; "" in every case here.
+#   address_1  the INITIAL CONTIGUOUS run of premises/unit designators --
+#              flat/plot/unit/shop/office number, block, wing, part, floor,
+#              tower.                              "which exact unit/property"
+#   address_2  EVERYTHING ELSE after that boundary, joined into ONE string:
+#              the named property/estate/park, then locality/area/road --
+#              the boundary is FINAL once reached, so nothing after it can
+#              rejoin address_1, no matter how premises-like it looks alone.
+#   address_3  ALWAYS "" in this workflow (interface-shape back-compat only).
+#   address_4  ALWAYS "" in this workflow (interface-shape back-compat only).
 #   city / state / pin_code   isolated canonical values, never inside a line.
 #
 # Source order is preserved: a fragment never moves across another. Where the
@@ -59,30 +63,29 @@
 # -----------------------------------------------------------------------------
 # 2026-09-10 baseline, before any fix:  78/140 fields (55.7%), 20/20 cases FAIL
 # 2026-09-10 after fixes below:        130/140 fields (92.9%),  5/20 cases FAIL
+# 2026-09-27 Address 1/Address 2 redesign: expectations rewritten to the new
+#            2-line Business Central shape (address_2/address_3 merged into
+#            one address_2 string; see run this file's docstring points to
+#            for the new baseline number). The premises-boundary findings
+#            below (what belongs on address_1 vs. what follows it) remain
+#            valid evidence -- only where the SECOND boundary (property vs.
+#            locality) used to fall is now moot, since both live in address_2.
 #
-# FIXED -- the named property could not be separated from the premises
-# designators.  Cause was a taxonomy collapse: premises_unit, structural,
-# building_name and estate_zone all sat at level 1, so the gap between
-# "3RD FLOOR" and "SAI INDUSTRIAL PARK" scored only the 0.2 tier-change term
-# and never reached the 0.5 threshold. building_name/estate_zone were given
-# their own level, and _gap_strength now grades a step by its distance:
-#   - a one-level increase scores 0.5 (at threshold, so it cuts, but it is the
-#     shallowest boundary and the first the packer gives back under line
-#     pressure -- which is what keeps the worked example on three lines)
-#   - a decrease WITHIN the premises band scores 0.2 (no cut), any other
-#     decrease 0.4, so "BUILDING D, PART C" stays whole while
-#     "KORAMANGALA, MG ROAD" and "ANDUL, 3RD FLOOR" still split
+# FIXED (still true under the redesign) -- the named property could not be
+# separated from the premises designators. Cause was a taxonomy collapse:
+# premises_unit, structural, building_name and estate_zone all sat at level 1,
+# so the gap between "3RD FLOOR" and "SAI INDUSTRIAL PARK" scored only the 0.2
+# tier-change term and never reached the 0.5 threshold. building_name/
+# estate_zone were given their own level -- this is exactly what makes them
+# ADDRESS_2-role today, correctly joining the locality content after them.
 #
-# FIXED -- three classification gaps in the same family. "BUILDING D",
-# "OFFICE NO. 405" and "GROUND LEVEL" matched no keyword and defaulted to
-# `unknown` at LOCALITY level, three levels above the premises fragments
-# beside them, cutting a boundary through one premises description.
-# `office`/`ground` became head keywords; "BUILDING D" is handled by a shape
-# rule (a tail-role structure word followed by a short designator) rather than
-# a keyword, because a word in both a head and a tail list makes
-# inject_boundaries cut between the word and its own designator.
+# FIXED (still true) -- three classification gaps in the same family.
+# "BUILDING D", "OFFICE NO. 405" and "GROUND LEVEL" matched no keyword and
+# defaulted to `unknown`, which is ALWAYS ADDRESS_2-role today -- so these
+# still needed their head-keyword fixes (`office`/`ground`) to correctly join
+# address_1's premises run instead of prematurely closing the boundary.
 #
-# FIXED -- city resolution promoted non-city fragments:
+# FIXED (still true) -- city resolution promoted non-city fragments:
 #     vl08  "Bawana Industrial Area" -> Delhi   (estate vetoed by classifier)
 #     vl14  "Kondli"                 -> Delhi   (state-is-a-city now outranks
 #                                                the positional guess)
@@ -90,28 +93,22 @@
 #                                                "NOIDA SECTOR 62")
 #
 # -----------------------------------------------------------------------------
-# STILL FAILING -- a third, distinct issue, deliberately NOT patched
+# MOOT UNDER THE REDESIGN -- previously "still failing", no longer relevant
 # -----------------------------------------------------------------------------
-# vl04, vl08, vl09, vl17: a named property and the estate CONTAINING it sit at
-# the same level, so no boundary is inferred between them:
-#     "SHREE GANESH COMPLEX, VATVA GIDC"          building_name + estate_zone
-#     "METRO LOGISTICS PARK, BAWANA INDUSTRIAL AREA"   estate + estate
-#     "SHIVAM INDUSTRIAL ESTATE, FOCAL POINT"          estate + estate
-#     "SARDAR INDUSTRIAL COMPLEX, MAKARPURA GIDC"      estate + estate
+# vl04, vl08, vl09, vl17 were previously failing because a named property and
+# the estate CONTAINING it sat at the same level, so no address_2/address_3
+# boundary could be inferred between them. Under the Address 1/Address 2
+# model there IS no address_2/address_3 boundary to find -- both fragments are
+# ADDRESS_2-role regardless, and join the same address_2 string. This class of
+# defect is structurally eliminated, not patched.
 #
-# This is the same SHAPE of defect as the one fixed above, one level up. The
-# building_name/estate_zone half could be fixed the same way (give estate_zone
-# its own level). The estate+estate half cannot -- it needs a positional rule
-# ("the second of two adjacent estate fragments is the containing area"), which
-# is a heuristic of exactly the kind the plan requires to be conservative and
-# confidence-capped. Left as a decision rather than an assumption.
-#
-# vl02: expectation UNDER REVIEW, not a known defect. The source is out of
-# canonical order ("PLOT NO. 47, INDUSTRIAL AREA PHASE II, BUILDING B, GROUND
-# FLOOR"). This file expects the plot and the estate on line 1; the segmenter
-# puts the plot alone on line 1 and keeps the estate with the building details
-# that follow it. The segmenter's reading is arguably the better one. Left
-# failing rather than quietly rewritten to match output.
+# vl02: expectation UNDER REVIEW, not a known defect (unchanged reasoning).
+# The source is out of canonical order ("PLOT NO. 47, INDUSTRIAL AREA PHASE
+# II, BUILDING B, GROUND FLOOR"). This file expects the plot and the estate on
+# address_1; the segmenter puts the plot alone on address_1 and joins the
+# estate with the building details that follow it into address_2. The
+# segmenter's reading is arguably the better one. Left failing rather than
+# quietly rewritten to match output.
 # =============================================================================
 
 version: 1
@@ -127,8 +124,8 @@ cases:
     address: "FLAT NO. 302, BLOCK C, 3RD FLOOR, SAI INDUSTRIAL PARK, SECTOR 18, GURUGRAM, HARYANA"
     expect:
       address_1: "FLAT NO. 302, BLOCK C, 3RD FLOOR"
-      address_2: "SAI INDUSTRIAL PARK"
-      address_3: "SECTOR 18"
+      address_2: "SAI INDUSTRIAL PARK, SECTOR 18"
+      address_3: ""
       address_4: ""
       city: "Gurugram"
       state: "Haryana"
@@ -137,17 +134,26 @@ cases:
   - id: vl02_estate_before_building
     note: >-
       Out of narrow->broad order: the estate (INDUSTRIAL AREA PHASE II) is
-      printed BEFORE the building and floor. Source order is preserved, so the
-      estate stays on line 1 with the plot rather than being moved to line 2.
+      printed BEFORE the building and floor. It is estate_zone-tier
+      (ADDRESS_2), so it closes the boundary immediately after the plot
+      (ADDRESS_1) -- the building/floor details that follow join address_2
+      with it, in source order, rather than being moved ahead of it.
     address: "PLOT NO. 47, INDUSTRIAL AREA PHASE II, BUILDING B, GROUND FLOOR, CHAKAN, PUNE, MAHARASHTRA"
     expect:
-      address_1: "PLOT NO. 47, INDUSTRIAL AREA PHASE II"
-      address_2: "BUILDING B, GROUND FLOOR"
-      address_3: "CHAKAN"
+      address_1: "PLOT NO. 47"
+      address_2: "INDUSTRIAL AREA PHASE II, BUILDING B, GROUND FLOOR, CHAKAN"
+      address_3: ""
       address_4: ""
       city: "Pune"
       state: "Maharashtra"
       pin_code: ""
+    bc_expect:
+      # BC representation (docs/ADDRESS_SEGMENTATION_PLAN.md s.6): semantic A2 exceeds
+      # BC_ADDRESS_2_MAX_LENGTH, so the smallest whole-fragment boundary shift applies.
+      address_1: "PLOT NO. 47, INDUSTRIAL AREA PHASE II"
+      address_2: "BUILDING B, GROUND FLOOR, CHAKAN"
+      status: MANUAL_REVIEW
+      reason_codes: [ADDRESS_BC_LENGTH_REBALANCE]
 
   - id: vl03_highway_and_town
     note: >-
@@ -156,8 +162,8 @@ cases:
     address: "UNIT 5A, 2ND FLOOR, TOWER 3, ORBIT LOGISTICS HUB, NH-8, BHIWANDI, THANE, MAHARASHTRA"
     expect:
       address_1: "UNIT 5A, 2ND FLOOR, TOWER 3"
-      address_2: "ORBIT LOGISTICS HUB"
-      address_3: "NH-8, BHIWANDI"
+      address_2: "ORBIT LOGISTICS HUB, NH-8, BHIWANDI"
+      address_3: ""
       address_4: ""
       city: "Thane"
       state: "Maharashtra"
@@ -168,8 +174,8 @@ cases:
     address: "SHOP NO. 18, PART B, GROUND LEVEL, SHREE GANESH COMPLEX, VATVA GIDC, AHMEDABAD, GUJARAT"
     expect:
       address_1: "SHOP NO. 18, PART B, GROUND LEVEL"
-      address_2: "SHREE GANESH COMPLEX"
-      address_3: "VATVA GIDC"
+      address_2: "SHREE GANESH COMPLEX, VATVA GIDC"
+      address_3: ""
       address_4: ""
       city: "Ahmedabad"
       state: "Gujarat"
@@ -180,8 +186,8 @@ cases:
     address: "4TH FLOOR, WING A, UNIT 401, EASTERN BUSINESS PARK, SALT LAKE, KOLKATA, WEST BENGAL"
     expect:
       address_1: "4TH FLOOR, WING A, UNIT 401"
-      address_2: "EASTERN BUSINESS PARK"
-      address_3: "SALT LAKE"
+      address_2: "EASTERN BUSINESS PARK, SALT LAKE"
+      address_3: ""
       address_4: ""
       city: "Kolkata"
       state: "West Bengal"
@@ -209,8 +215,8 @@ cases:
     address: "PLOT NO. 112, BLOCK B, 2ND FLOOR, SRI LAKSHMI INDUSTRIAL COMPLEX, AMBATTUR, CHENNAI, TAMIL NADU"
     expect:
       address_1: "PLOT NO. 112, BLOCK B, 2ND FLOOR"
-      address_2: "SRI LAKSHMI INDUSTRIAL COMPLEX"
-      address_3: "AMBATTUR"
+      address_2: "SRI LAKSHMI INDUSTRIAL COMPLEX, AMBATTUR"
+      address_3: ""
       address_4: ""
       city: "Chennai"
       state: "Tamil Nadu"
@@ -223,20 +229,24 @@ cases:
     address: "UNIT NO. 7, BLOCK A, 5TH FLOOR, METRO LOGISTICS PARK, BAWANA INDUSTRIAL AREA, DELHI"
     expect:
       address_1: "UNIT NO. 7, BLOCK A, 5TH FLOOR"
-      address_2: "METRO LOGISTICS PARK"
-      address_3: "BAWANA INDUSTRIAL AREA"
+      address_2: "METRO LOGISTICS PARK, BAWANA INDUSTRIAL AREA"
+      address_3: ""
       address_4: ""
       city: "Delhi"
       state: "Delhi"
       pin_code: ""
 
   - id: vl09_focal_point
-    note: FOCAL POINT is the Punjab estate idiom for a locality.
+    note: >-
+      FOCAL POINT is the Punjab estate idiom for a locality. PHASE III is
+      locality-scale (the structural-tier "phase" exception -- see the module
+      docstring's role-mapping section), so the boundary closes right after
+      UNIT B-14, and PHASE III joins address_2 with the rest.
     address: "1ST FLOOR, UNIT B-14, PHASE III, SHIVAM INDUSTRIAL ESTATE, FOCAL POINT, LUDHIANA, PUNJAB"
     expect:
-      address_1: "1ST FLOOR, UNIT B-14, PHASE III"
-      address_2: "SHIVAM INDUSTRIAL ESTATE"
-      address_3: "FOCAL POINT"
+      address_1: "1ST FLOOR, UNIT B-14"
+      address_2: "PHASE III, SHIVAM INDUSTRIAL ESTATE, FOCAL POINT"
+      address_3: ""
       address_4: ""
       city: "Ludhiana"
       state: "Punjab"
@@ -250,8 +260,8 @@ cases:
     address: "TOWER B, 6TH FLOOR, PART A, OFFICE NO. 603, CYBER TRADE CENTRE, NOIDA SECTOR 62, UTTAR PRADESH"
     expect:
       address_1: "TOWER B, 6TH FLOOR, PART A, OFFICE NO. 603"
-      address_2: "CYBER TRADE CENTRE"
-      address_3: "SECTOR 62"
+      address_2: "CYBER TRADE CENTRE, SECTOR 62"
+      address_3: ""
       address_4: ""
       city: "Noida"
       state: "Uttar Pradesh"
@@ -264,8 +274,8 @@ cases:
     address: "UNIT C-22, GROUND FLOOR, BLOCK D, MAHALAXMI INDUSTRIAL PARK, ANDHERI EAST, MUMBAI, MAHARASHTRA"
     expect:
       address_1: "UNIT C-22, GROUND FLOOR, BLOCK D"
-      address_2: "MAHALAXMI INDUSTRIAL PARK"
-      address_3: "ANDHERI EAST"
+      address_2: "MAHALAXMI INDUSTRIAL PARK, ANDHERI EAST"
+      address_3: ""
       address_4: ""
       city: "Mumbai"
       state: "Maharashtra"
@@ -302,8 +312,8 @@ cases:
     address: "OFFICE NO. 405, 4TH FLOOR, TOWER A, SRI DURGA BUSINESS PARK, KONDLI, DELHI"
     expect:
       address_1: "OFFICE NO. 405, 4TH FLOOR, TOWER A"
-      address_2: "SRI DURGA BUSINESS PARK"
-      address_3: "KONDLI"
+      address_2: "SRI DURGA BUSINESS PARK, KONDLI"
+      address_3: ""
       address_4: ""
       city: "Delhi"
       state: "Delhi"
@@ -316,8 +326,8 @@ cases:
     address: "BLOCK E, UNIT 16, GROUND FLOOR, INDUSTRIAL LOGISTICS CENTRE, HITECH CITY, HYDERABAD, TELANGANA"
     expect:
       address_1: "BLOCK E, UNIT 16, GROUND FLOOR"
-      address_2: "INDUSTRIAL LOGISTICS CENTRE"
-      address_3: "HITECH CITY"
+      address_2: "INDUSTRIAL LOGISTICS CENTRE, HITECH CITY"
+      address_3: ""
       address_4: ""
       city: "Hyderabad"
       state: "Telangana"
@@ -342,8 +352,8 @@ cases:
     address: "UNIT D-09, 1ST FLOOR, BLOCK B, SARDAR INDUSTRIAL COMPLEX, MAKARPURA GIDC, VADODARA, GUJARAT"
     expect:
       address_1: "UNIT D-09, 1ST FLOOR, BLOCK B"
-      address_2: "SARDAR INDUSTRIAL COMPLEX"
-      address_3: "MAKARPURA GIDC"
+      address_2: "SARDAR INDUSTRIAL COMPLEX, MAKARPURA GIDC"
+      address_3: ""
       address_4: ""
       city: "Vadodara"
       state: "Gujarat"
@@ -357,8 +367,8 @@ cases:
     address: "BUILDING B, 3RD FLOOR, PART C, UNIT 312, NORTH CITY LOGISTICS PARK, BARASAT ROAD, KOLKATA, WEST BENGAL"
     expect:
       address_1: "BUILDING B, 3RD FLOOR, PART C, UNIT 312"
-      address_2: "NORTH CITY LOGISTICS PARK"
-      address_3: "BARASAT ROAD"
+      address_2: "NORTH CITY LOGISTICS PARK, BARASAT ROAD"
+      address_3: ""
       address_4: ""
       city: "Kolkata"
       state: "West Bengal"
@@ -371,8 +381,8 @@ cases:
     address: "GROUND FLOOR, UNIT A-06, BLOCK F, R.K. INDUSTRIAL ESTATE, KALHER, BHIWANDI, MAHARASHTRA"
     expect:
       address_1: "GROUND FLOOR, UNIT A-06, BLOCK F"
-      address_2: "R.K. INDUSTRIAL ESTATE"
-      address_3: "KALHER"
+      address_2: "R.K. INDUSTRIAL ESTATE, KALHER"
+      address_3: ""
       address_4: ""
       city: "Bhiwandi"
       state: "Maharashtra"
@@ -383,8 +393,8 @@ cases:
     address: "5TH FLOOR, PART B, OFFICE 502, TOWER C, GREENFIELD BUSINESS PARK, HOSUR ROAD, BENGALURU, KARNATAKA"
     expect:
       address_1: "5TH FLOOR, PART B, OFFICE 502, TOWER C"
-      address_2: "GREENFIELD BUSINESS PARK"
-      address_3: "HOSUR ROAD"
+      address_2: "GREENFIELD BUSINESS PARK, HOSUR ROAD"
+      address_3: ""
       address_4: ""
       city: "Bengaluru"
       state: "Karnataka"

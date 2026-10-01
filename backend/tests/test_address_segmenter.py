@@ -1,7 +1,7 @@
 """address_segmenter.py -- classification, boundary injection, grouping,
 and the corpus/invariant sweep.
 
-The corpus (app/eval/address_line_cases.yaml, 61 synthetic cases) is scored
+The corpus (app/eval/address_line_cases.yaml, 74 synthetic cases) is scored
 here as exact-match PLUS a set of invariants that must hold on EVERY case,
 not just the ones that happen to be exact-match-correct -- see TestInvariants.
 Exact-match failures point at a specific wrong classification/threshold;
@@ -160,9 +160,12 @@ class TestBoundaryInjection:
         2-3 token string if a keyword is present (see
         test_inject_boundaries_itself_has_no_length_floor below). The real,
         guaranteed contract -- "short comma-less segments are left alone" --
-        is only true end-to-end through segment_leftover()."""
+        is only true end-to-end through segment_leftover(). The untouched
+        fragment classifies `unknown` (whole-fragment classification looks at
+        the first/last TOKEN, not an embedded word like "FLOOR"), which is
+        ALWAYS ADDRESS_2 -- Address 1 is empty."""
         r = segment_leftover(["3RD FLOOR ABC"])
-        assert r.lines == ["3RD FLOOR ABC"]
+        assert r.lines == ["", "3RD FLOOR ABC"]
 
     def test_inject_boundaries_itself_has_no_length_floor(self):
         """Documents the actual (correct) contract of the low-level utility:
@@ -232,21 +235,25 @@ class TestGrouping:
         assert len(r.lines) == 1
 
     def test_worked_example_exact(self):
+        """Address 1 = the initial contiguous premises run (floor + block);
+        the boundary is FINAL the moment the estate name (non-premises) is
+        reached -- everything after it, including the trailing locality run,
+        joins Address 2 as one string."""
         segs = ["3RD FLOOR", "PART A BLOCK B", "SRIJAN INDUSTRIAL LOGISTIC PARK",
                 "MOHIARY", "CHANDIBAGAN", "ANDUL", "NATIBPUR"]
         r = segment_leftover(segs)
         assert r.lines == [
-            "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK",
-            "MOHIARY, CHANDIBAGAN, ANDUL",
-            "NATIBPUR",
+            "3RD FLOOR, PART A BLOCK B",
+            "SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY, CHANDIBAGAN, ANDUL, NATIBPUR",
         ]
-        assert r.confidence == "medium"
+        assert r.confidence == "high"
 
     def test_village_po_keyword_bypasses_tail_split_threshold(self):
-        """A REAL village_po keyword gets its own group regardless of run
-        length -- unlike the positional tail-split heuristic."""
+        """Neither fragment is premises_unit/structural-tier (SILVER OAK is
+        building_name; VILL- SAKINAKA is village_po), so Address 1 is empty
+        and both join Address 2 as one string."""
         r = segment_leftover(["SILVER OAK", "VILL- SAKINAKA"])
-        assert r.lines == ["SILVER OAK", "VILL- SAKINAKA"]
+        assert r.lines == ["", "SILVER OAK, VILL- SAKINAKA"]
 
     def test_empty_leftover(self):
         r = segment_leftover([])
@@ -254,55 +261,75 @@ class TestGrouping:
         assert r.confidence == "low"
 
 
+class TestSemanticBoundaryField:
+    """SegmentedAddress.semantic_boundary / .fallback_applied (additive
+    fields for the BC address representation layer -- see
+    docs/ADDRESS_SEGMENTATION_PLAN.md §2/§4/§12). Purely observational: they
+    must reflect what _split_by_role already decided, without changing any
+    existing output (lines/groups/confidence/notes)."""
+
+    def test_normal_premise_run_reports_its_length(self):
+        r = segment_leftover(["UNIT 302", "BLOCK B", "SRIJAN PARK"])
+        assert r.semantic_boundary == 2
+        assert r.fallback_applied is False
+
+    def test_no_premise_at_all_boundary_is_zero_no_fallback(self):
+        r = segment_leftover(["SILVER OAK", "VILL- SAKINAKA"])
+        assert r.semantic_boundary == 0
+        assert r.fallback_applied is False
+        assert r.lines[0] == ""  # Address 1 stayed empty -- no fallback fired
+
+    def test_leading_thoroughfare_fallback_boundary_is_zero_not_one(self):
+        """When the thoroughfare fallback fires, semantic_boundary is 0 (no
+        ADDRESS_1-role run existed) even though the FINAL group boundary
+        (len(groups[0])) is 1. These two numbers are deliberately different
+        -- semantic_boundary is the pre-fallback truth."""
+        r = segment_leftover(["MG ROAD", "SECTOR 12", "PHASE 3"])
+        assert r.fallback_applied is True
+        assert r.semantic_boundary == 0
+        assert len(r.groups[0]) == 1  # the fallback's own result
+
+    def test_empty_leftover_boundary_is_zero(self):
+        r = segment_leftover([])
+        assert r.semantic_boundary == 0
+        assert r.fallback_applied is False
+
+
 class TestTailSplitConservatism:
-    """The locality-tail-split is a heuristic, not a geographic rule -- see
-    address_segmenter.py's module docstring. These tests specifically guard
-    against it firing too aggressively."""
+    """The old locality-tail-split heuristic is REMOVED under the Address
+    1/Address 2 role model -- there is no third line to peel a fragment onto.
+    These tests now confirm Address 2 joining has no length limit: any number
+    of non-premises fragments join ONE Address 2 string, regardless of count
+    or whether premises content precedes them."""
 
-    def test_two_localities_stay_together(self):
+    def test_two_localities_join_address_2(self):
         r = segment_leftover(["KORAMANGALA", "INDIRANAGAR"])
-        assert len(r.lines) == 1
+        assert r.lines == ["", "KORAMANGALA, INDIRANAGAR"]
 
-    def test_three_localities_stay_together(self):
+    def test_three_localities_join_address_2(self):
         r = segment_leftover(["MOHIARY", "CHANDIBAGAN", "ANDUL"])
-        assert len(r.lines) == 1
+        assert r.lines == ["", "MOHIARY, CHANDIBAGAN, ANDUL"]
 
-    def test_four_localities_with_no_other_content_stay_together(self):
-        """The case that distinguishes "conservative" from "never fires":
-        four co-equal locality names and NOTHING else must NOT split, because
-        there is no preceding premises/street content establishing that the
-        last one specifically is administratively distinct."""
+    def test_four_localities_with_no_other_content_join_address_2(self):
+        """Four co-equal locality names and NOTHING else all join ONE
+        Address 2 string -- no per-count heuristic exists to peel one off."""
         r = segment_leftover(["ANDHERI", "VILE PARLE", "SANTACRUZ", "BANDRA"])
-        assert len(r.lines) == 1
-        assert r.lines[0] == "ANDHERI, VILE PARLE, SANTACRUZ, BANDRA"
+        assert r.lines == ["", "ANDHERI, VILE PARLE, SANTACRUZ, BANDRA"]
 
-    def test_five_localities_with_no_other_content_stay_together(self):
+    def test_five_localities_with_no_other_content_join_address_2(self):
         r = segment_leftover(["A", "B", "C", "D", "E"])
-        assert len(r.lines) == 1
+        assert r.lines == ["", "A, B, C, D, E"]
 
-    def test_four_localities_DOES_split_when_preceded_by_other_content(self):
-        """The contrasting case: the same 4-locality run splits correctly
-        when there IS real premises content before it to narrow from -- this
-        is the worked example's own shape, confirming the tail-split still
-        fires when it should, not just that it's suppressed."""
+    def test_four_localities_join_address_2_even_when_preceded_by_premises(self):
+        """The same 4-locality run joins Address 2 together with the estate
+        name that precedes it, regardless of how much non-premises content
+        exists -- there is no length-based trigger to split it further."""
         r = segment_leftover([
             "3RD FLOOR", "PART A BLOCK B", "SRIJAN INDUSTRIAL LOGISTIC PARK",
             "MOHIARY", "CHANDIBAGAN", "ANDUL", "NATIBPUR",
         ])
-        assert len(r.lines) == 3
-
-    def test_corpus_majority_of_locality_bucket_stays_together(self):
-        """I11: over the corpus's dedicated locality bucket, MORE cases must
-        leave a multi-word locality run together than split it -- the split
-        is the minority, flagged exception, not the default outcome."""
-        bucket = [c for c in _CASES if c["id"].startswith("localities_")]
-        assert len(bucket) >= 8
-        split_count = sum(1 for c in bucket if c["expect"].get("address_3"))
-        stay_count = len(bucket) - split_count
-        assert stay_count > split_count, (
-            f"{split_count} of {len(bucket)} locality-bucket cases produced a "
-            "3rd line -- the tail-split must remain the minority outcome"
-        )
+        assert len(r.lines) == 2
+        assert r.lines[1] == "SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY, CHANDIBAGAN, ANDUL, NATIBPUR"
 
 
 # ---------------------------------------------------------------------------
@@ -310,13 +337,15 @@ class TestTailSplitConservatism:
 # ---------------------------------------------------------------------------
 
 class TestConfidence:
-    def test_tail_split_caps_confidence_at_medium(self):
+    def test_premises_then_locality_run_is_high_confidence(self):
+        """A clean premises run followed by a clean, fully-classified
+        non-premises run is high confidence -- there is no tail-split
+        mechanism left to cap it at medium."""
         r = segment_leftover([
             "3RD FLOOR", "PART A BLOCK B", "SRIJAN INDUSTRIAL LOGISTIC PARK",
             "MOHIARY", "CHANDIBAGAN", "ANDUL", "NATIBPUR",
         ])
-        assert "locality_tail_split_inferred" in r.notes
-        assert r.confidence == "medium"
+        assert r.confidence == "high"
 
     def test_injected_boundary_caps_confidence_at_medium(self):
         r = segment_leftover(["3RD FLOOR PART A BLOCK B SRIJAN INDUSTRIAL PARK ANDUL"])
@@ -446,15 +475,14 @@ class TestDesegment:
 
     def test_end_to_end_glued_address_segments(self):
         """A fully space-stripped combined address still produces the worked
-        example's three lines once re-spaced."""
+        example's Address 1/Address 2 split once re-spaced."""
         segs = ["3RDFLOOR", "PARTABLOCKB", "SRIJANINDUSTRIALLOGISTICPARK",
                 "MOHIARY", "CHANDIBAGAN", "ANDUL", "NATIBPUR"]
         r = segment_leftover(segs)
         assert "ocr_deglue_applied" in r.notes
         assert r.lines == [
-            "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK",
-            "MOHIARY, CHANDIBAGAN, ANDUL",
-            "NATIBPUR",
+            "3RD FLOOR, PART A BLOCK B",
+            "SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY, CHANDIBAGAN, ANDUL, NATIBPUR",
         ]
 
     def test_deterministic(self):
@@ -577,6 +605,8 @@ class TestBackCompat:
         assert set(d.keys()) == {"address_1", "address_2", "city", "state", "pin_code"}
 
     def test_as_dict_full_adds_address_3_and_4(self):
+        """address_3/address_4 remain on the dict for interface-shape
+        back-compat, always empty in this workflow -- never populated."""
         from app.services.extraction_pipeline.extract.address_resolver import (
             resolve_address_blob,
         )
@@ -586,10 +616,16 @@ class TestBackCompat:
             multiline=True,
         )
         d = r.as_dict_full()
-        assert set(d.keys()) == {"address_1", "address_2", "address_3", "address_4", "city", "state", "pin_code"}
-        assert d["address_3"] == "NATIBPUR"
+        assert set(d.keys()) == {"address_1", "address_2", "address_3", "address_4", "city", "state", "pin_code", "country"}
+        assert d["address_3"] == ""
+        assert d["address_4"] == ""
 
     def test_multiline_true_reproduces_worked_example_end_to_end(self):
+        """The task brief's own worked example (docs/ADDRESS_SEGMENTATION_
+        RESEARCH.md-adjacent redesign): Address 1 is the initial contiguous
+        premises run; the boundary is final the moment the estate name is
+        reached, so the trailing locality run joins Address 2 as one string.
+        address_3/address_4 are always empty in this workflow."""
         from app.services.extraction_pipeline.extract.address_resolver import (
             resolve_address_blob,
         )
@@ -598,9 +634,9 @@ class TestBackCompat:
             "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY, CHANDIBAGAN, ANDUL, NATIBPUR, HOWRAH, West Bengal, 711302",
             multiline=True,
         )
-        assert r.address_1 == "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK"
-        assert r.address_2 == "MOHIARY, CHANDIBAGAN, ANDUL"
-        assert r.address_3 == "NATIBPUR"
+        assert r.address_1 == "3RD FLOOR, PART A BLOCK B"
+        assert r.address_2 == "SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY, CHANDIBAGAN, ANDUL, NATIBPUR"
+        assert r.address_3 == ""
         assert r.address_4 == ""
         assert r.city == "Howrah"
         assert r.state == "West Bengal"
@@ -623,6 +659,135 @@ class TestBackCompat:
             p for p in (multi.address_1, multi.address_2, multi.address_3, multi.address_4) if p
         )
         assert joined == legacy.address_1
+
+
+# ---------------------------------------------------------------------------
+# TestAddress1FallbackPopulation -- presentation/business fallback
+# ---------------------------------------------------------------------------
+# _fallback_populate_address_1() is NOT semantic re-segmentation. The primary
+# segmentation (segment_leftover) has already decided Address 1 vs Address 2
+# on semantic grounds by the time this runs; this fallback only fires when
+# that decision left Address 1 completely empty while Address 2 has content
+# -- an empty Address 1 looks incomplete in vendor output, while an empty
+# Address 2 is fully acceptable. See address_resolver.py's docstring on the
+# function itself for the full rule.
+
+class TestAddress1FallbackPopulation:
+    @staticmethod
+    def _fb():
+        from app.services.extraction_pipeline.extract.address_resolver import (
+            _fallback_populate_address_1,
+        )
+        return _fallback_populate_address_1
+
+    def test_business_requirement_address_1_never_empty_when_address_2_has_content(self):
+        """The requirement this whole fallback exists for, stated directly as
+        one test: Address 1 must never remain empty when Address 2 contains
+        remaining content."""
+        fb = self._fb()
+        assert fb("", "Sector 67") == ("Sector 67", "")
+        assert fb("", "Ward 07, Sector 67") == ("Ward 07", "Sector 67")
+        assert fb("", "Ward 07, Sector 67, Industrial Area") == ("Ward 07, Sector 67", "Industrial Area")
+
+    def test_case1_single_fragment_moves_entirely_address_2_becomes_empty(self):
+        fb = self._fb()
+        assert fb("", "Sector 67") == ("Sector 67", "")
+
+    def test_case2_two_fragments_moves_only_the_first(self):
+        fb = self._fb()
+        assert fb("", "Ward 07, Sector 67") == ("Ward 07", "Sector 67")
+
+    def test_case3_three_fragments_moves_first_two(self):
+        fb = self._fb()
+        assert fb("", "Ward 07, Sector 67, Industrial Area") == ("Ward 07, Sector 67", "Industrial Area")
+
+    def test_case4_four_fragments_moves_first_two_preserving_order(self):
+        fb = self._fb()
+        assert fb("", "A, B, C, D") == ("A, B", "C, D")
+
+    def test_case5_real_gst_registry_example(self):
+        fb = self._fb()
+        got = fb(
+            "",
+            "WARD NO 07, JHANSI SERVICE ROAD NIWARI TIGELA, "
+            "JHANSI SERVICE ROAD NIWARI TIGELA, Niwari JHANSI SERVICE ROAD NIWARI TIGELA",
+        )
+        assert got == (
+            "WARD NO 07, JHANSI SERVICE ROAD NIWARI TIGELA",
+            "JHANSI SERVICE ROAD NIWARI TIGELA, Niwari JHANSI SERVICE ROAD NIWARI TIGELA",
+        )
+
+    def test_case6_existing_address_1_is_never_touched(self):
+        fb = self._fb()
+        assert fb("F-192", "Phase 8B, Industrial Area, Sector 74") == (
+            "F-192", "Phase 8B, Industrial Area, Sector 74",
+        )
+
+    def test_case7_existing_multi_fragment_address_1_is_never_touched(self):
+        fb = self._fb()
+        assert fb("Flat 402, Tower B", "Sunrise Apartments, Block C, Sector 10") == (
+            "Flat 402, Tower B", "Sunrise Apartments, Block C, Sector 10",
+        )
+
+    def test_empty_address_2_is_a_noop_not_an_invented_value(self):
+        fb = self._fb()
+        assert fb("", "") == ("", "")
+        assert fb("", "   ") == ("", "   ")
+
+    def test_no_fragment_is_dropped_or_duplicated(self):
+        """Every original comma-delimited fragment appears exactly once
+        across the two outputs, regardless of how many fragments there are."""
+        fb = self._fb()
+        for a2 in ("Sector 67", "Ward 07, Sector 67", "Ward 07, Sector 67, Industrial Area",
+                   "A, B, C, D", "A, B, C, D, E, F"):
+            a1_out, a2_out = fb("", a2)
+            before = [f.strip() for f in a2.split(",") if f.strip()]
+            after = [f.strip() for f in a1_out.split(",") if f.strip()] + \
+                    [f.strip() for f in a2_out.split(",") if f.strip()]
+            assert before == after, f"fragment set/order changed for {a2!r}: {before} != {after}"
+
+    def test_source_order_never_changes(self):
+        """Only a contiguous PREFIX may move -- never a reordering."""
+        fb = self._fb()
+        a1_out, a2_out = fb("", "A, B, C, D")
+        assert a1_out == "A, B"
+        assert a2_out == "C, D"
+        # explicitly NOT "B" / "A, C, D" or "C" / "A, B, D"
+        assert a1_out != "B"
+        assert a1_out != "C"
+
+    def test_end_to_end_through_resolve_address_blob(self):
+        """The fallback is wired into the real entry point, not just tested
+        in isolation -- and City/State/Country/PIN/address_3/address_4 are
+        untouched by it."""
+        from app.services.extraction_pipeline.extract.address_resolver import (
+            resolve_address_blob,
+        )
+
+        addr = (
+            "WARD NO 07, JHANSI SERVICE ROAD NIWARI TIGELA, "
+            "JHANSI SERVICE ROAD NIWARI TIGELA, Niwari JHANSI SERVICE ROAD NIWARI TIGELA, 472442"
+        )
+        r = resolve_address_blob(addr, multiline=True)
+        assert r.address_1 == "WARD NO 07, JHANSI SERVICE ROAD NIWARI TIGELA"
+        assert r.address_2 == "JHANSI SERVICE ROAD NIWARI TIGELA, Niwari JHANSI SERVICE ROAD NIWARI TIGELA"
+        assert r.address_3 == ""
+        assert r.address_4 == ""
+        assert r.city == "Niwari"
+        assert r.state == "Madhya Pradesh"
+        assert r.pin_code == "472442"
+
+    def test_end_to_end_does_not_fire_when_address_1_already_populated(self):
+        from app.services.extraction_pipeline.extract.address_resolver import (
+            resolve_address_blob,
+        )
+
+        r = resolve_address_blob(
+            "F-192, Phase 8B, Industrial Area, Sector 74, SAS Nagar, Punjab 160055",
+            multiline=True,
+        )
+        assert r.address_1 == "F-192"
+        assert r.address_2 == "Phase 8B, Industrial Area, Sector 74"
 
 
 # ---------------------------------------------------------------------------

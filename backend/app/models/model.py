@@ -100,6 +100,12 @@ class Vendor(Base, TimestampMixin, BusinessCentralSyncMixin):
     raw_extraction = Column(JSON)
     source_documents = Column(JSON)        # [{file_name, document_type, confidence}]
     fields_needing_review = Column(JSON)   # list[str] carried from extraction
+    # A reviewer's one-click confirmation of an automatic Address / Address 2
+    # rebalance (docs/ADDRESS_SEGMENTATION_PLAN.md s.7-8): {reason_code,
+    # final_address_1, final_address_2, values_sha256, confirmed_by_user_id,
+    # confirmed_at}. Set only by the confirm endpoint, never by create/update.
+    # It is valid only while values_sha256 still matches the stored lines.
+    address_review = Column(JSON)
 
     created_by_user_id = Column(Integer, ForeignKey("users.id"), index=True)
 
