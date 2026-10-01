@@ -109,16 +109,56 @@ def check_requested_sheets(template: Optional[Path], sheet_names: list[str]) -> 
     return available
 
 
+_ADDRESS_FIELD_KEYS = ("address_1", "address_2", "address_3", "address_4", "city", "state", "pin_code")
+
+
+def _overwrite_address_from_registry(result, registry_address: str) -> None:
+    """Replace the extracted address fields with the GST registry's own
+    registered address, split the same way the vendor pipeline already
+    splits any other address blob (address_resolver.resolve_address_blob,
+    multiline=True -- the same function document extraction itself uses),
+    so the registry address lands in address_1/address_2/city/state/pin_code
+    with no separate splitting logic to maintain.
+
+    Only touches fields the registry actually produced a value for -- a
+    field the resolver left blank (e.g. address_3/4, which this resolver
+    never populates) is left as whatever the documents already gave it
+    rather than being blanked out."""
+    from app.services.extraction_pipeline.extract.address_resolver import resolve_address_blob
+    from app.services.extraction_pipeline.models import FieldResult
+
+    resolved = resolve_address_blob(registry_address, multiline=True)
+    values = resolved.as_dict_full()
+
+    for key in _ADDRESS_FIELD_KEYS:
+        value = values.get(key)
+        if not value:
+            continue
+        field_result = result.fields.get(key)
+        if field_result is None:
+            field_result = FieldResult(key=key)
+            result.fields[key] = field_result
+        field_result.value = value
+        field_result.source_document = "gst_registry"
+        field_result.matched_label = None
+        field_result.match_kind = "gstin_registry"
+        field_result.confidence = 1.0
+        field_result.notes.append("Overwritten from live GST registry address (GSTIN verification)")
+
+
 def _apply_gstin_verification(result) -> None:
-    """Live GST-registry check (gstinapi.in) on the extracted `gst_number`
-    field, surfaced through the SAME FieldResult the vendor Compare page
-    already renders (VendorComparePage.jsx's buildRows() reads `.notes` /
-    `.validation_messages` off each field's to_dict() -- no new response
-    shape, no frontend change needed).
+    """Live GST-registry check on the extracted `gst_number` field, surfaced
+    through the SAME FieldResult the vendor Compare page already renders
+    (VendorComparePage.jsx's buildRows() reads `.notes` / `.validation_messages`
+    off each field's to_dict() -- no new response shape, no frontend change
+    needed). Also replaces the extracted address fields with the registry's
+    own registered address -- see _overwrite_address_from_registry -- since
+    the registry is a more reliable source for the vendor's legal address
+    than OCR off a scanned certificate.
 
     A no-op when GSTIN_API_ENABLED is off, no gst_number was extracted, or
     the live call fails/is disabled -- never blocks or alters extraction
-    itself, only annotates the existing field."""
+    itself, only annotates/overwrites the existing fields."""
     from app.services.gstin_verification import verify_gstin
 
     field = result.fields.get("gst_number")
@@ -130,13 +170,15 @@ def _apply_gstin_verification(result) -> None:
         return  # disabled / no key / call failed -- nothing to add
 
     if verification.active:
-        note = f"GST registry: active" + (f" ({verification.legal_name})" if verification.legal_name else "")
-        field.notes.append(note)
+        field.notes.append("GST registry: active")
     else:
-        field.notes.append(f"GST registry: NOT active (status: {verification.status or 'unknown'})")
+        field.notes.append("GST registry: NOT active")
         field.validation_messages.append("GSTIN is registered but not active per the live GST registry")
         if field.validation_status == "valid":
             field.validation_status = "warning"
+
+    if verification.address:
+        _overwrite_address_from_registry(result, verification.address)
 
 
 def extract(documents: list[Path], run_dir: Path, models: str):

@@ -25,6 +25,14 @@ const DownloadIcon = () => (
   </svg>
 )
 
+const EditIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+    <path d="M12 20h9"/>
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+  </svg>
+)
+
 /**
  * Normalise the backend `fields` map into rows the comparison table can render.
  *
@@ -65,6 +73,7 @@ function buildRows(fields, needsReview, excelUploaded) {
     return {
       label, pdfValue, excelValue, isSingle,
       excelMismatch, needsReviewFlag, isMismatch,
+      userEdited: Boolean(field.user_edited),
       confidence: field.confidence,
       // Extra provenance/annotations a FieldResult may carry -- currently
       // used for the live GSTIN registry check (see
@@ -82,8 +91,56 @@ export default function VendorComparePage() {
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState('')
 
-  // Receive the extraction result that VendorUploadPage passed via navigation state
-  const result = location.state?.result
+  // Local, editable copy of the extraction result passed in via navigation
+  // state. A reviewer can correct misread values here before they move on to
+  // Confirm/Submit -- nothing is sent back to the backend by this page itself
+  // (there is no persistence step between Compare and Confirm today), so an
+  // edit just needs to update this in-memory copy, which is what flows
+  // forward via navigate(..., { state: { result } }) exactly as the
+  // unedited result already did.
+  //
+  // One global edit toggle rather than a per-row pencil: a reviewer
+  // correcting several fields would otherwise have to open/save/reopen each
+  // row one at a time. "Edit" puts every row's Extracted Value cell into an
+  // input at once, drafted in `draftValues` (label -> string) so nothing is
+  // written back to `editedResult` -- and so nothing the Compare table
+  // reads -- until "Save changes" commits the whole set in one update.
+  // "Cancel" discards the draft instead.
+  const [editedResult, setEditedResult] = useState(location.state?.result ?? null)
+  const [editMode, setEditMode] = useState(false)
+  const [draftValues, setDraftValues] = useState({})
+
+  const result = editedResult
+
+  function startEditAll(fields) {
+    const draft = {}
+    for (const [label, field] of Object.entries(fields ?? {})) {
+      draft[label] = field.value ?? ''
+    }
+    setDraftValues(draft)
+    setEditMode(true)
+  }
+
+  function cancelEditAll() {
+    setEditMode(false)
+    setDraftValues({})
+  }
+
+  function saveEditAll() {
+    setEditedResult(prev => {
+      const nextFields = { ...prev.fields }
+      for (const [label, value] of Object.entries(draftValues)) {
+        const field = nextFields[label] ?? {}
+        const changed = (field.value ?? '') !== value
+        nextFields[label] = changed
+          ? { ...field, value, user_edited: true }
+          : field
+      }
+      return { ...prev, fields: nextFields }
+    })
+    setEditMode(false)
+    setDraftValues({})
+  }
 
   // If user lands here directly without going through upload, redirect back
   if (!result) {
@@ -171,18 +228,32 @@ export default function VendorComparePage() {
                       {row.label}
                       {row.notes.length > 0 && (
                         <div className="field-notes">
-                          {row.notes.map((note, i) => (
-                            <div
-                              key={i}
-                              className={note.includes('NOT active') ? 'field-note field-note--warning' : 'field-note'}
-                            >
-                              {note}
-                            </div>
-                          ))}
+                          {row.notes.map((note, i) => {
+                            const cls = note.includes('NOT active')
+                              ? 'field-note field-note--warning'
+                              : note.startsWith('GST registry: active')
+                                ? 'field-note field-note--active'
+                                : 'field-note'
+                            return <div key={i} className={cls}>{note}</div>
+                          })}
                         </div>
                       )}
                     </td>
-                    <td className={row.excelMismatch ? 'val-mismatch' : ''}>{row.pdfValue}</td>
+                    <td className={row.excelMismatch ? 'val-mismatch' : ''}>
+                      {editMode ? (
+                        <input
+                          type="text"
+                          value={draftValues[row.label] ?? ''}
+                          onChange={e => setDraftValues(d => ({ ...d, [row.label]: e.target.value }))}
+                          style={{
+                            width: '100%', padding: '4px 8px', fontSize: '0.85rem',
+                            border: '1px solid var(--color-border, #ccc)', borderRadius: 6,
+                          }}
+                        />
+                      ) : (
+                        row.pdfValue
+                      )}
+                    </td>
                     <td>
                       {row.isSingle
                         ? <span className="val-absent">Not in template</span>
@@ -191,6 +262,7 @@ export default function VendorComparePage() {
                             : <span className="val-absent">Not filled in Excel</span>)}
                     </td>
                     <td>
+                      {row.userEdited && <span className="badge badge--neutral">Edited</span>}
                       {row.isSingle && <span className="badge badge--neutral">Single source</span>}
                       {row.excelMismatch && <span className="badge badge--warning">PDF ≠ Excel</span>}
                       {!row.excelMismatch && row.needsReviewFlag && <span className="badge badge--warning">Review</span>}
@@ -211,6 +283,27 @@ export default function VendorComparePage() {
 
           <div className="action-bar">
             <div className="action-bar-inner">
+
+              {/* One global edit toggle for the whole table -- see the
+                  editMode/draftValues comment above buildRows usage for why
+                  this replaces a per-row pencil. */}
+              {editMode ? (
+                <>
+                  <button type="button" className="btn btn-primary" style={{ marginRight: 8 }}
+                          onClick={saveEditAll}>
+                    Save changes
+                  </button>
+                  <button type="button" className="btn btn-outline" style={{ marginRight: 8 }}
+                          onClick={cancelEditAll}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="btn btn-outline" style={{ marginRight: 8 }}
+                        onClick={() => startEditAll(result.fields)}>
+                  <EditIcon /> Edit
+                </button>
+              )}
 
               {/* Download filled Excel if available. Goes through fetch() (see
                   api.downloadFile) so the request carries the auth token and
@@ -243,7 +336,7 @@ export default function VendorComparePage() {
                 type="button"
                 className="btn btn-primary"
                 id="submit-btn"
-                disabled={loading}
+                disabled={loading || editMode}
                 onClick={handleSubmit}
                 aria-label="Validate and submit vendor data to Business Central"
               >
