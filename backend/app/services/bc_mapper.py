@@ -10,6 +10,20 @@ Only fields the portal actually has are included. Blank values are omitted
 rather than sent as "", so BC keeps its own defaults. Posting groups come from
 config and are sent only when configured.
 
+This module is a LOSSLESS SERIALIZER (docs/ADDRESS_SEGMENTATION_PLAN.md,
+constraint C-NRM-08 "never truncate"). It copies each stored value into its
+BC field exactly as stored (surrounding whitespace trimmed, nothing else). It
+never shortens, slices, abbreviates or drops a value to fit a BC column width:
+  - BC field widths live in backend/config/bc_targets/bc22_in_vendorcard.yaml
+    and are enforced by the payload gate (services/bc_payload_gate.py), which
+    runs BEFORE this mapper and blocks or asks for review instead of cutting.
+  - A value the gate approved is therefore exactly the value serialized here.
+  - Address 3/4 have no BC field. They are never joined into Address_2 (that
+    join is what produced a 100-character Address_2 and BC's
+    Application_StringExceededLength). A record still carrying Address 3/4
+    text is refused (BcPayloadError) rather than silently dropped -- the gate
+    proposes a lossless re-layout for such records.
+
 TODO (needs confirmation against the live BC company before enabling POST):
   - Is `Vendor_Posting_Group` / `Customer_Posting_Group` mandatory on insert?
     An existing vendor had it populated ("EMPLOAN") while Gen/VAT groups were
@@ -29,63 +43,24 @@ from __future__ import annotations
 from app.config.config import settings
 from app.models.model import Customer, Vendor
 
-# Standard Business Central field widths (base VendorCard/CustomerCard --
-# Vendor and Customer tables both use these same widths for the same-named
-# fields). Fixed inside BC's own schema: the OData endpoint rejects anything
-# longer with Application_StringExceededLength, and this cannot be changed
-# from the portal side -- only a BC AL extension widening the base table
-# column could raise it. A field with no entry here is assumed unbounded
-# (safe default; BC will reject it just the same if that assumption is wrong,
-# and the failure will now show the real reason -- see push_to_bc.ps1).
-_BC_FIELD_MAX_LEN: dict[str, int] = {
-    "Name": 50,
-    "Address": 50,
-    "Address_2": 50,
-    "City": 30,
-    "County": 30,
-    "Contact": 50,
-    "Phone_No": 30,
-    "MobilePhoneNo": 30,
-    "E_Mail": 80,
-    "Home_Page": 80,
-    "Post_Code": 20,
-    "PAN_Number": 20,
-    "GST_Number": 20,
-}
+
+class BcPayloadError(ValueError):
+    """The record holds data this mapper cannot represent in a BC payload
+    without losing it (e.g. Address 3/4 text). Raised instead of silently
+    dropping or joining it; the router turns it into a 409."""
+
+    def __init__(self, message: str, fields: list[str]):
+        super().__init__(message)
+        self.fields = fields
 
 
-def _fit_to_bc_width(bc_field: str, value: str, truncated: list[str]) -> str:
-    """Cut `value` to bc_field's known BC column width, word-boundary aware,
-    and record the field name in `truncated` when a cut actually happened.
-    A field with no configured width is returned unchanged -- BC still
-    enforces its own limit server-side if this table is ever wrong or
-    incomplete; this is a best-effort pre-check, not the source of truth."""
-    limit = _BC_FIELD_MAX_LEN.get(bc_field)
-    if limit is None or len(value) <= limit:
-        return value
-    # Prefer cutting at the last whitespace inside the limit so a word isn't
-    # split mid-token; fall back to a hard cut only if there's no whitespace
-    # to break on (one very long unbroken token).
-    head = value[:limit]
-    last_space = head.rfind(" ")
-    cut = head[:last_space].rstrip() if last_space > 0 else head
-    cut = cut.rstrip(",;").rstrip() or head  # don't leave a trailing separator
-    truncated.append(bc_field)
-    return cut
-
-
-# portal Vendor attribute  ->  BC VendorCard field
-# address_2/3/4 are NOT mapped here individually -- a standard BC VendorCard
-# has only Address and Address_2, no Address_3/Address_4. They are joined
-# into Address_2 explicitly in vendor_to_bc_payload() below, so a vendor whose
-# address_resolver-driven segmentation produced 3 or 4 lines (see
-# address_segmenter.py) still has every line represented on the BC push --
-# nothing is silently dropped for lack of a field to put it in. If the target
-# BC tenant exposes custom Address_3/Address_4 fields, change this to a
-# straight 1:1 map instead of a join.
+# portal Vendor attribute  ->  BC VendorCard field. A standard BC VendorCard has
+# only Address and Address_2 (no Address_3/Address_4), mapped 1:1 from
+# address_1 / address_2. Address 3/4 are handled in vendor_to_bc_payload().
 _FIELD_MAP: dict[str, str] = {
     "vendor_name": "Name",
     "address_1": "Address",
+    "address_2": "Address_2",
     "city": "City",
     "state": "County",
     "country": "Country_Region_Code",
@@ -98,41 +73,46 @@ _FIELD_MAP: dict[str, str] = {
     "gst_no": "GST_Number",
 }
 
-# Vendor attributes joined (in order) into BC's single Address_2 field.
-# Legacy behaviour, used only while BC_PAYLOAD_GATE_ENABLED is off: with the
-# gate on, Address 3/4 are never joined (they would overflow Address 2's
-# 50-character limit -- C-ADR-04); the gate blocks a record that still has
-# them and proposes a lossless re-layout instead.
-_ADDRESS_2_JOIN_FIELDS = ("address_2", "address_3", "address_4")
+# Portal lines with no BC VendorCard field (C-ADR-04). Never joined, never
+# dropped: a non-empty value makes vendor_to_bc_payload() refuse.
+_UNMAPPABLE_ADDRESS_LINES = ("address_3", "address_4")
 
 
 def vendor_to_bc_payload(vendor: Vendor) -> dict:
-    """Build the JSON body for a POST to .../VendorCard, plus a
-    `_truncated_fields` list (BC field names cut to fit BC's own column
-    width -- see _BC_FIELD_MAX_LEN). Non-empty `_truncated_fields` means the
-    push will still succeed, but the sent value is not the FULL extracted
-    address; the caller should flag the record for a human to check/complete
-    directly in BC. Strip `_truncated_fields` before sending -- it is not a
-    BC field.
+    """Build the JSON body for a POST to .../VendorCard.
 
-    With BC_PAYLOAD_GATE_ENABLED (docs/ADDRESS_SEGMENTATION_PLAN.md step 12)
-    Address_2 is `address_2` alone and Country_Region_Code is the BC code
-    from the target profile (e.g. "India" -> "IN"), never the name. The
-    router only calls this once the gate has passed. Values are not
-    shortened in that path -- an over-length value is the gate's job to
-    block, not this function's.
+    Every mapped value is copied as stored (trimmed); nothing is shortened.
+    Over-length values are the payload gate's job to block before this runs.
+
+    Country_Region_Code: with BC_PAYLOAD_GATE_ENABLED it is the BC code from
+    the target profile (e.g. "India" -> "IN"), never the name; an unmapped
+    country is left out (the gate raises INVALID_COUNTRY). With the gate off
+    the stored value is sent as before -- the tenant's India code (IN vs
+    INDIA) is still unverified (plan Q4).
+
+    Raises BcPayloadError when address_3/address_4 hold text: BC has no field
+    for them, and joining them into Address_2 or leaving them out would both
+    lose or corrupt the address.
     """
-    payload: dict[str, str] = {"No": ""}
-    truncated: list[str] = []
-    gate_on = settings.BC_PAYLOAD_GATE_ENABLED
+    leftover = [
+        attr for attr in _UNMAPPABLE_ADDRESS_LINES
+        if str(getattr(vendor, attr, "") or "").strip()
+    ]
+    if leftover:
+        raise BcPayloadError(
+            "Address 3/4 have no Business Central field. Move their text into "
+            "Address / Address 2 (or confirm the proposed re-layout) before pushing; "
+            "they are never joined into Address 2 or dropped.",
+            fields=leftover,
+        )
 
+    payload: dict[str, str] = {"No": ""}
     for attr, bc_field in _FIELD_MAP.items():
         value = getattr(vendor, attr, None)
         if value:
-            payload[bc_field] = _fit_to_bc_width(bc_field, str(value).strip(), truncated)
+            payload[bc_field] = str(value).strip()
 
-    if gate_on:
-        address_2 = str(getattr(vendor, "address_2", "") or "").strip()
+    if settings.BC_PAYLOAD_GATE_ENABLED:
         country = (getattr(vendor, "country", "") or "").strip()
         if country:
             from app.services.bc_target_profile import load_profile
@@ -143,13 +123,6 @@ def vendor_to_bc_payload(vendor: Vendor) -> dict:
             else:
                 # unmapped: the gate raises INVALID_COUNTRY; never send the name
                 payload.pop("Country_Region_Code", None)
-    else:
-        address_2_parts = [
-            str(getattr(vendor, attr, "") or "").strip() for attr in _ADDRESS_2_JOIN_FIELDS
-        ]
-        address_2 = ", ".join(p for p in address_2_parts if p)
-    if address_2:
-        payload["Address_2"] = _fit_to_bc_width("Address_2", address_2, truncated)
 
     if settings.BC_GEN_BUS_POSTING_GROUP:
         payload["Gen_Bus_Posting_Group"] = settings.BC_GEN_BUS_POSTING_GROUP
@@ -158,7 +131,6 @@ def vendor_to_bc_payload(vendor: Vendor) -> dict:
     if settings.BC_VENDOR_POSTING_GROUP:
         payload["Vendor_Posting_Group"] = settings.BC_VENDOR_POSTING_GROUP
 
-    payload["_truncated_fields"] = truncated
     return payload
 
 
@@ -199,16 +171,14 @@ _CUSTOMER_FIELD_MAP: dict[str, str] = {
 def customer_to_bc_payload(customer: Customer) -> dict:
     """Build the JSON body for a POST to .../CustomerCard. Mirrors
     vendor_to_bc_payload: blank values omitted rather than sent as "", `No`
-    sent empty so BC assigns it from its own No. Series, and BC-column-width
-    overflow is truncated with the cut fields reported in
-    `_truncated_fields` (strip before sending -- not a BC field)."""
+    sent empty so BC assigns it from its own No. Series, and every value is
+    copied as stored -- never shortened."""
     payload: dict[str, str] = {"No": ""}
-    truncated: list[str] = []
 
     for attr, bc_field in _CUSTOMER_FIELD_MAP.items():
         value = getattr(customer, attr, None)
         if value:
-            payload[bc_field] = _fit_to_bc_width(bc_field, str(value).strip(), truncated)
+            payload[bc_field] = str(value).strip()
 
     if settings.BC_GEN_BUS_POSTING_GROUP:
         payload["Gen_Bus_Posting_Group"] = settings.BC_GEN_BUS_POSTING_GROUP
@@ -217,7 +187,6 @@ def customer_to_bc_payload(customer: Customer) -> dict:
     if settings.BC_CUSTOMER_POSTING_GROUP:
         payload["Customer_Posting_Group"] = settings.BC_CUSTOMER_POSTING_GROUP
 
-    payload["_truncated_fields"] = truncated
     return payload
 
 

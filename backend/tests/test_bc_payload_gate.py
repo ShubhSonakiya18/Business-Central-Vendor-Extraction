@@ -61,14 +61,27 @@ def _codes(resp):
 # ---------------------------------------------------------------------------
 
 class TestGateOff:
-    def test_legacy_join_and_country_name_unchanged(self, auth_client, gate_off):
-        vid = _create(auth_client, address_3="Sector 74", address_4="Near Metro")
+    def test_country_name_unchanged(self, auth_client, gate_off):
+        """Gate off keeps the stored country value (tenant code IN vs INDIA is
+        still unverified, plan Q4)."""
+        vid = _create(auth_client)
         r = _payload(auth_client, vid)
         assert r.status_code == 200
         p = r.json()["payload"]
-        assert p["Address_2"] == "SRIJAN INDUSTRIAL LOGISTIC PARK, Sector 74, Near Metro"
+        assert p["Address_2"] == BASE["address_2"]
         assert p["Country_Region_Code"] == "India"
         assert "findings" not in r.json()
+
+    def test_address_3_4_never_joined_or_dropped(self, auth_client, gate_off):
+        """The old gate-off path joined Address 2+3+4 into Address_2 (the join
+        behind BC's Application_StringExceededLength). Now the mapper refuses
+        rather than join or silently drop the extra lines."""
+        vid = _create(auth_client, address_3="Sector 74", address_4="Near Metro")
+        r = _payload(auth_client, vid)
+        assert r.status_code == 409
+        assert sorted(f["field"] for f in r.json()["detail"]["findings"]) == ["address_3", "address_4"]
+        stored = auth_client.get(f"/vendors/{vid}").json()
+        assert (stored["address_3"], stored["address_4"]) == ("Sector 74", "Near Metro")
 
     def test_gate_endpoints_unavailable(self, auth_client, gate_off):
         vid = _create(auth_client)
@@ -100,13 +113,17 @@ class TestGatePasses:
 
 
 class TestOverLengthAddress:
-    def test_a2_over_limit_blocks_with_proposal(self, auth_client, bc_on):
+    def test_a2_over_limit_safe_layout_needs_one_click(self, auth_client, bc_on):
+        """A stored Address 2 over 50 with a safe whole-fragment layout is a
+        one-click ADDRESS_BC_LENGTH_REBALANCE (plan section 6-7) -- still
+        not pushable until confirmed, and never shortened."""
         vid = _create(auth_client, address_1="3RD FLOOR, PART A BLOCK B", address_2=LONG_A2)
         r = _payload(auth_client, vid)
         assert r.status_code == 409
         f = r.json()["detail"]["findings"][0]
-        assert f["reason_code"] == "FIELD_TOO_LONG"
-        assert f["automation_class"] == "BLOCK_SUBMISSION"
+        assert f["reason_code"] == "ADDRESS_BC_LENGTH_REBALANCE"
+        assert f["automation_class"] == "MANUAL_REVIEW"
+        assert f["confirmed"] is False
         assert f["constraint"] == "BC_ADDRESS_2_MAX_LENGTH"
         assert f["proposal"] == {
             "address_1": "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK",
@@ -131,8 +148,23 @@ class TestOverLengthAddress:
         r = _payload(auth_client, vid)
         assert r.status_code == 409
         f = r.json()["detail"]["findings"][0]
+        assert f["reason_code"] == "ADDRESS_OVERFLOW"
+        assert f["automation_class"] == "BLOCK_SUBMISSION"
         assert f["proposal"] is None
         assert "edit the address by hand" in f["detail"]
+        # text untouched on the record
+        stored = auth_client.get(f"/vendors/{vid}").json()
+        assert (stored["address_1"], stored["address_2"]) == ("X" * 95, "Y" * 55)
+
+    def test_single_fragment_too_long_blocks_never_cut(self, auth_client, bc_on):
+        long_fragment = "Z" * 110  # one comma-less fragment, longer than any line
+        vid = _create(auth_client, address_1=long_fragment, address_2="")
+        r = _payload(auth_client, vid)
+        assert r.status_code == 409
+        f = r.json()["detail"]["findings"][0]
+        assert f["reason_code"] == "ADDRESS_OVERFLOW"
+        assert "fragment_too_long" in f["detail"]
+        assert auth_client.get(f"/vendors/{vid}").json()["address_1"] == long_fragment
 
 
 class TestLegacyAddress34:
@@ -201,7 +233,9 @@ class TestExtractionRebalanceNeedsOneClick:
         auth_client.patch(f"/vendors/{vid}", json={"address_2": LONG_A2})
         r = _payload(auth_client, vid)
         assert r.status_code == 409
-        assert "FIELD_TOO_LONG" in _codes(r)
+        f = r.json()["detail"]["findings"][0]
+        assert f["reason_code"] == "ADDRESS_BC_LENGTH_REBALANCE"
+        assert f["confirmed"] is False  # the old confirmation no longer counts
         # a human edit that fits is accepted as human-authored
         auth_client.patch(f"/vendors/{vid}", json={"address_2": "ANDUL, Natibpur"})
         assert _payload(auth_client, vid).status_code == 200

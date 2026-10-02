@@ -122,6 +122,11 @@ class TestMainExitCode:
                     <Property Name="County" MaxLength="30"/>
                     <Property Name="Post_Code" MaxLength="20"/>
                     <Property Name="Country_Region_Code" MaxLength="10"/>
+                    <Property Name="Name" MaxLength="100"/>
+                    <Property Name="Phone_No" MaxLength="30"/>
+                    <Property Name="MobilePhoneNo" MaxLength="30"/>
+                    <Property Name="E_Mail" MaxLength="80"/>
+                    <Property Name="Home_Page" MaxLength="80"/>
                   </EntityType>
                 </Schema>
               </edmx:DataServices>

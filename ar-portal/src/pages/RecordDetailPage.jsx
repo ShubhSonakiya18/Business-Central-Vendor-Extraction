@@ -83,8 +83,10 @@ const BC_REASON_LABELS = {
   ADDRESS_INVARIANT_VIOLATION: 'Address check failed',
 }
 const BC_FIELD_LABELS = {
-  address_1: 'Address', address_2: 'Address 2', city: 'City',
-  state: 'State (County)', pin_code: 'PIN (Post Code)', country: 'Country',
+  address_1: 'Address', address_2: 'Address 2', address_3: 'Address 3', address_4: 'Address 4',
+  city: 'City', state: 'State (County)', pin_code: 'PIN (Post Code)', country: 'Country',
+  vendor_name: 'Name', telephone_1: 'Phone', telephone_2: 'Mobile phone',
+  email: 'E-mail', website: 'Website (Home Page)',
 }
 
 function fmtDate(s) {
@@ -433,14 +435,6 @@ export default function RecordDetailPage() {
 
                       {bc && (
                         <>
-                          {bc.truncated_fields?.length > 0 && (
-                            <p className="bc-help" style={{ color: 'var(--color-warning, #b3541e)', marginBottom: 8 }}>
-                              ⚠ {bc.truncated_fields.join(', ')} {bc.truncated_fields.length > 1 ? 'were' : 'was'} too
-                              long for Business Central's field limit and {bc.truncated_fields.length > 1 ? 'have' : 'has'} been
-                              shortened below. The full extracted value is still on this record — after pushing,
-                              open the vendor in BC and complete the address there if needed.
-                            </p>
-                          )}
                           <div className="bc-payload-actions">
                             <button className="btn btn-secondary" onClick={downloadPayload}>Download JSON</button>
                             <button className="btn btn-secondary" onClick={copyPayload}>Copy</button>

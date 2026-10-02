@@ -32,6 +32,7 @@ from app.models.model import User
 from app.services import records_crud as crud
 from app.services.auth_services.dependencies import get_current_user
 from app.services.bc_mapper import (
+    BcPayloadError,
     customer_card_url,
     customer_to_bc_payload,
     vendor_card_url,
@@ -93,14 +94,26 @@ def vendor_bc_payload(
                         "vendor_id": vendor.id, **gate.to_dict()},
             )
 
-    # `_truncated_fields` is bc_mapper's own bookkeeping, not a BC field --
-    # pull it out of `payload` before it's sent anywhere near BC (the JSON
-    # file this endpoint produces is POSTed to BC byte-for-byte by
-    # scripts/push_to_bc.ps1) and surface it as a sibling key instead, so the
-    # portal can flag "address was too long for BC and got cut" without BC
-    # ever seeing an unexpected field.
-    payload = vendor_to_bc_payload(vendor)
-    truncated_fields = payload.pop("_truncated_fields", [])
+    # The mapper is a lossless serializer: the values the gate approved above
+    # are exactly the values in this payload (never shortened -- C-NRM-08).
+    # It refuses rather than drop data it cannot represent (Address 3/4).
+    try:
+        payload = vendor_to_bc_payload(vendor)
+    except BcPayloadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(exc),
+                "vendor_id": vendor.id,
+                "blocked": True,
+                "findings": [
+                    {"field": f, "reason_code": "ADDRESS_OVERFLOW",
+                     "automation_class": "BLOCK_SUBMISSION", "detail": str(exc),
+                     "constraint": "BC_NO_ADDRESS_3_4", "confirmed": False, "proposal": None}
+                    for f in exc.fields
+                ],
+            },
+        )
 
     body = {
         "vendor_id": vendor.id,
@@ -109,7 +122,6 @@ def vendor_bc_payload(
         "target_url": vendor_card_url(),
         "method": "POST",
         "payload": payload,
-        "truncated_fields": truncated_fields,
     }
     if gate is not None:
         body["findings"] = gate.to_dict()["findings"]
@@ -202,18 +214,14 @@ def customer_bc_payload(
     if customer is None:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    # See the matching comment in vendor_bc_payload above.
-    payload = customer_to_bc_payload(customer)
-    truncated_fields = payload.pop("_truncated_fields", [])
-
     return {
         "customer_id": customer.id,
         "already_pushed": customer.bc_status == "pushed",
         "bc_no": customer.bc_no,
         "target_url": customer_card_url(),
         "method": "POST",
-        "payload": payload,
-        "truncated_fields": truncated_fields,
+        # Lossless: every stored value is sent as-is, never shortened.
+        "payload": customer_to_bc_payload(customer),
     }
 
 

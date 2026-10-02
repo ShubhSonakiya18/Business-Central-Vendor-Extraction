@@ -68,6 +68,48 @@ constraints:
     category: MICROSOFT_BC_CONSTRAINT
     registry: C-ADR-04
 
+  # Non-address VendorCard fields the portal sends. Values are the documented
+  # BC 22 widths from docs/BC_VENDOR_CONSTRAINT_REGISTRY.md. The payload gate
+  # checks every length constraint here; an over-limit value is a
+  # FIELD_TOO_LONG finding (BLOCK) and is never shortened. PAN_Number /
+  # GST_Number are deliberately absent: they are tenant extension fields whose
+  # width is unknown (C-LEN-17, TENANT VERIFICATION REQUIRED).
+  BC_NAME_MAX_LENGTH:
+    bc_field: Name
+    portal: vendor_name
+    value: 100
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-01
+
+  BC_PHONE_MAX_LENGTH:
+    bc_field: Phone_No
+    portal: telephone_1
+    value: 30
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-10
+
+  BC_MOBILE_PHONE_MAX_LENGTH:
+    bc_field: MobilePhoneNo
+    portal: telephone_2
+    value: 30
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-10
+
+  BC_EMAIL_MAX_LENGTH:
+    bc_field: E_Mail
+    portal: email
+    value: 80
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-11
+
+  BC_HOME_PAGE_MAX_LENGTH:
+    bc_field: Home_Page
+    portal: website
+    # 80 in BC 22; 255 in current BC versions (version-dependent, C-LEN-12).
+    value: 80
+    category: MICROSOFT_BC_CONSTRAINT
+    registry: C-LEN-12
+
 # India country name -> BC Country/Region Code. TENANT VERIFICATION REQUIRED
 # (Q4): whether the tenant's code is "IN" or "INDIA" is not yet confirmed.
 country_codes:

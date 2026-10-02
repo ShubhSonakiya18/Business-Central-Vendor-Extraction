@@ -38,6 +38,10 @@ INVALID_PIN = "INVALID_PIN"
 
 _PIN_RE = re.compile(r"^[1-9]\d{5}$")
 
+# Vendor attributes owned by check_address (whole-fragment rebalance), never by
+# the per-field length check.
+_ADDRESS_LINE_ATTRS = frozenset({"address_1", "address_2", "address_3", "address_4"})
+
 
 @dataclass
 class GateFinding:
@@ -150,16 +154,30 @@ def check_address(vendor: Vendor, profile: BcTargetProfile) -> list[GateFinding]
         else:
             constraint = "BC_ADDRESS_1_MAX_LENGTH"
             detail = f"Address is {len(a1)} characters; the limit is {limits.address_1_max}"
-        if proposal is None:
-            detail += "; no whole-fragment re-layout fits -- edit the address by hand"
-        findings.append(GateFinding(
-            field="address_1",
-            reason_code=(FIELD_TOO_LONG if not legacy_3_4 else
-                         (REASON_BC_LENGTH_REBALANCE if proposal else REASON_ADDRESS_OVERFLOW)),
-            automation_class=BLOCK_SUBMISSION,
-            detail=detail, constraint=constraint,
-            before={**stored, "address_3": a3, "address_4": a4}, proposal=proposal,
-        ))
+
+        if proposal is not None:
+            # A safe whole-fragment layout exists (plan section 6-7): one-click
+            # review. The stored lines differ from the proposal, so it is
+            # never pre-confirmed -- confirming applies the proposal.
+            findings.append(GateFinding(
+                field="address_1", reason_code=REASON_BC_LENGTH_REBALANCE,
+                automation_class=MANUAL_REVIEW,
+                detail=f"{detail}; confirm the proposed split (whole parts moved, no text cut)",
+                constraint=constraint,
+                before={**stored, "address_3": a3, "address_4": a4}, proposal=proposal,
+            ))
+        else:
+            # No whole-fragment layout fits: BLOCK, stored text untouched.
+            overflow = next((f.detail for f in decision.findings
+                             if f.reason_code == REASON_ADDRESS_OVERFLOW), "")
+            findings.append(GateFinding(
+                field="address_1", reason_code=REASON_ADDRESS_OVERFLOW,
+                automation_class=BLOCK_SUBMISSION,
+                detail=(f"{detail}; no whole-fragment re-layout fits -- edit the address by hand"
+                        + (f" ({overflow})" if overflow == "fragment_too_long" else "")),
+                constraint=constraint,
+                before={**stored, "address_3": a3, "address_4": a4}, proposal=None,
+            ))
         return findings
 
     # Lines fit. If they are still the machine's extraction-time rebalance,
@@ -182,15 +200,23 @@ def check_address(vendor: Vendor, profile: BcTargetProfile) -> list[GateFinding]
 
 
 def check_other_fields(vendor: Vendor, profile: BcTargetProfile) -> list[GateFinding]:
-    """City / County / Post Code / Country checks (plan section 5). Never
-    modify values -- the County abbreviation map, when configured, is a
-    PROPOSAL only."""
+    """Every non-address length constraint in the BC target profile (Name,
+    City, County, Post Code, Phone, Mobile, E-Mail, Home Page, ...), plus PIN
+    format and Country mapping (plan section 5). Over-limit -> FIELD_TOO_LONG,
+    BLOCK. Never modifies a value and never shortens one: these fields do not
+    take part in the address whole-fragment rebalance. The County
+    abbreviation map, when configured, is offered as a PROPOSAL only."""
     findings: list[GateFinding] = []
-    for attr, constraint in (("city", "BC_CITY_MAX_LENGTH"),
-                             ("state", "BC_COUNTY_MAX_LENGTH"),
-                             ("pin_code", "BC_POST_CODE_MAX_LENGTH")):
+    for constraint, spec in profile.raw["constraints"].items():
+        attr = spec.get("portal")
+        limit = spec.get("value")
+        # Address / Address 2 are handled by check_address (whole-fragment
+        # rebalance); Country is a code lookup (its width applies to the BC
+        # code, not the stored name); Address 3/4 have no BC field.
+        if (not isinstance(attr, str) or not isinstance(limit, int)
+                or attr in _ADDRESS_LINE_ATTRS or attr == "country"):
+            continue
         value = (getattr(vendor, attr, "") or "").strip()
-        limit = profile.limit(constraint)
         if len(value) > limit:
             proposal = None
             if attr == "state":
