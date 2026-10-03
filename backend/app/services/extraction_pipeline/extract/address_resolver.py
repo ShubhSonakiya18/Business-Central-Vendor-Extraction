@@ -434,7 +434,12 @@ def resolve_address_blob(
     which is False, so default behaviour is unchanged.
     """
     out = ResolvedAddress()
-    segments, country = _drop_trailing_country(_segments(address))
+    raw_segments = _segments(address)
+    # No comma or line break anywhere in the source text: the geography peel
+    # below matches whole comma segments, so it cannot find a city/state
+    # glued onto the address text (plan §7 GEOGRAPHY_UNRESOLVED).
+    comma_less_input = len(raw_segments) == 1
+    segments, country = _drop_trailing_country(raw_segments)
     if not segments:
         out.country = country or "India"
         out.country_source = "extracted" if country else "default"
@@ -484,7 +489,7 @@ def resolve_address_blob(
         if _bc_layer_on(bc_layer):
             # Steps 5-9 (presentation fallback + BC representation). Replaces
             # the positional lines AND the string-level backfill below.
-            decision = _represent(seg_result, out)
+            decision = _represent(seg_result, out, comma_less_input=comma_less_input)
             out.address_1, out.address_2 = decision.address_1, decision.address_2
             out.address_3 = out.address_4 = ""
             out.representation = representation_to_dict(decision)
@@ -524,7 +529,7 @@ def _bc_layer_on(bc_layer: bool | None) -> bool:
     return settings.BC_ADDRESS_LAYER_ENABLED
 
 
-def _represent(seg_result, out: ResolvedAddress):
+def _represent(seg_result, out: ResolvedAddress, *, comma_less_input: bool = False):
     """Run address_representation steps 5-9 on the segmenter's result, using
     the configured BC target profile's limits and the geography this
     resolver already extracted (for the BC-07 guard only)."""
@@ -540,6 +545,7 @@ def _represent(seg_result, out: ResolvedAddress):
         profile_name=profile.name,
         geography={"city": out.city, "state": out.state,
                    "country": out.country, "pin_code": out.pin_code},
+        comma_less_input=comma_less_input,
     )
 
 

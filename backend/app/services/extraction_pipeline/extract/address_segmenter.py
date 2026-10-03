@@ -202,6 +202,13 @@ class SegmentedAddress:
     # existed at all). This is the `leading_thoroughfare` variant of the
     # plan's step-5 presentation fallback -- see address_representation.py.
     fallback_applied: bool = False
+    # ocr_repairs: (original, repaired) for every segment the OCR de-glue
+    # rewrote ("4THFLOOR" -> "4TH FLOOR"). boundaries_inferred: True when the
+    # comma-less mode injected at least one fragment boundary. Both only
+    # EXPOSE what segment_leftover already did (and already notes), so the
+    # representation layer can log ADDRESS_OCR_REPAIRED (plan §7).
+    ocr_repairs: list[tuple[str, str]] = _dc_field(default_factory=list)
+    boundaries_inferred: bool = False
 
     def get(self, n: int) -> str:
         """1-based line accessor (`get(1)` == address_1); '' past the end."""
@@ -1028,6 +1035,7 @@ def segment_leftover(segments: list[str], *, pin: str = "", district: str = "") 
     # left untouched. Recorded in notes when it fired, so a reviewer sees the
     # input was noisy.
     deglued = _desegment_segments(clean_segments)
+    ocr_repairs = [(old, new) for old, new in zip(clean_segments, deglued) if old != new]
     if deglued != clean_segments:
         notes.append("ocr_deglue_applied")
         clean_segments = deglued
@@ -1115,4 +1123,5 @@ def segment_leftover(segments: list[str], *, pin: str = "", district: str = "") 
         lines=lines, groups=groups, fragments=fragments,
         confidence=level, score=round(base_score, 3), notes=notes,
         semantic_boundary=semantic_boundary, fallback_applied=fallback_applied,
+        ocr_repairs=ocr_repairs, boundaries_inferred=any_injected,
     )

@@ -38,6 +38,9 @@ REASON_ADDRESS_1_BACKFILLED = "ADDRESS_1_BACKFILLED"
 REASON_BC_LENGTH_REBALANCE = "ADDRESS_BC_LENGTH_REBALANCE"
 REASON_ADDRESS_OVERFLOW = "ADDRESS_OVERFLOW"
 REASON_ADDRESS_INVARIANT_VIOLATION = "ADDRESS_INVARIANT_VIOLATION"
+REASON_ADDRESS_OCR_REPAIRED = "ADDRESS_OCR_REPAIRED"
+REASON_LOW_CONFIDENCE = "LOW_CONFIDENCE"
+REASON_GEOGRAPHY_UNRESOLVED = "GEOGRAPHY_UNRESOLVED"
 
 AUTO_FIX = "AUTO_FIX"
 MANUAL_REVIEW = "MANUAL_REVIEW"
@@ -89,6 +92,11 @@ class SemanticLayout:
     fragments: tuple[LayoutFragment, ...]
     semantic_boundary: int          # length of the initial contiguous ADDRESS_1-role run
     thoroughfare_fallback_applied: bool = False  # _split_by_role's own leading_thoroughfare fallback
+    # Layer-1 OCR repairs the segmenter already applied (plan §7 "OCR de-glue /
+    # inferred comma-less boundaries"): (original, repaired) per de-glued
+    # segment, and whether comma-less boundaries were inferred.
+    ocr_repairs: tuple[tuple[str, str], ...] = ()
+    boundaries_inferred: bool = False
 
     @property
     def semantic_address_1(self) -> str:
@@ -102,7 +110,8 @@ class SemanticLayout:
 @dataclass(frozen=True)
 class AddressTransform:
     """One provenance entry (plan §8). `layer` is "semantic" (recorded
-    once, boundary_before==boundary_after), "presentation_fallback", or
+    once, boundary_before==boundary_after), "ocr_repair" (Layer-1 repair
+    record, boundary unchanged), "presentation_fallback", or
     "bc_representation"."""
 
     layer: str
@@ -219,6 +228,8 @@ def layout_from_segmented(seg_result) -> SemanticLayout:
         fragments=layout_fragments,
         semantic_boundary=seg_result.semantic_boundary,
         thoroughfare_fallback_applied=seg_result.fallback_applied,
+        ocr_repairs=tuple(seg_result.ocr_repairs),
+        boundaries_inferred=seg_result.boundaries_inferred,
     )
 
 
@@ -325,6 +336,7 @@ def represent_address(
     profile_name: str = "",
     geography: Mapping[str, str] | None = None,
     mode: str = "apply",
+    comma_less_input: bool = False,
 ) -> AddressDecision:
     """Runs steps 5-9 (plan §2) and returns the full decision.
 
@@ -341,8 +353,18 @@ def represent_address(
     only for the BC-07 guard in step 8; never mutated, never consulted to
     move a fragment (plan §4 "Geography safety").
     """
-    transforms: list[AddressTransform] = []
+    transforms: list[AddressTransform] = list(_ocr_repair_transforms(sem))
     findings: list[AddressFinding] = []
+
+    # Plan §7 / D2: inferred boundaries AND every fragment unknown -> the
+    # split itself is a guess, so a human looks at it.
+    if sem.boundaries_inferred and sem.fragments and all(
+        f.tier == "unknown" for f in sem.fragments
+    ):
+        findings.append(AddressFinding(
+            reason_code=REASON_LOW_CONFIDENCE, automation_class=MANUAL_REVIEW,
+            detail="comma-less address: fragment boundaries were inferred and no fragment was recognised",
+        ))
 
     # step 5
     after_fallback, fallback_transform = apply_a1_fallback(sem)
@@ -420,12 +442,22 @@ def represent_address(
             detail=f"violated: {', '.join(invariant_violations)}",
         ))
 
+    # Plan §7 GEOGRAPHY_UNRESOLVED: comma-less source text only. Never moves or
+    # edits text, never blocks -- a human checks City/State and the last line.
+    if comma_less_input:
+        unresolved = _geography_unresolved(final_layout, geography or {})
+        if unresolved:
+            findings.append(AddressFinding(
+                reason_code=REASON_GEOGRAPHY_UNRESOLVED, automation_class=MANUAL_REVIEW,
+                detail="comma-less address: " + "; ".join(unresolved),
+            ))
+
     # step 9: decision
     if any(f.automation_class == BLOCK_SUBMISSION for f in findings):
         status = DecisionStatus.BLOCK
     elif any(f.automation_class == MANUAL_REVIEW for f in findings):
         status = DecisionStatus.MANUAL_REVIEW
-    elif fallback_transform is not None:
+    elif any(t.automation_class == AUTO_FIX for t in transforms):
         status = DecisionStatus.AUTO_FIX
     else:
         status = DecisionStatus.AUTO_PASS
@@ -434,6 +466,32 @@ def represent_address(
         semantic=sem, final=final_layout,
         transforms=tuple(transforms), findings=tuple(findings), status=status,
     )
+
+
+def _ocr_repair_transforms(sem: SemanticLayout) -> list[AddressTransform]:
+    """Plan §7: OCR de-glue and inferred comma-less boundaries are AUTO_FIX,
+    logged as ADDRESS_OCR_REPAIRED. The segmenter already made the repair in
+    Layer 1; these entries only record it. No boundary moves and no text
+    changes here, so original_* == final_* == the semantic layout."""
+    a1, a2, b = sem.semantic_address_1, sem.semantic_address_2, sem.semantic_boundary
+    entries = []
+    if sem.ocr_repairs:
+        entries.append(("ocr_deglue",
+                        "; ".join(f"{old!r} -> {new!r}" for old, new in sem.ocr_repairs)))
+    if sem.boundaries_inferred:
+        entries.append(("comma_less_boundary_inference",
+                        f"{len(sem.fragments)} fragments inferred from text without commas"))
+    return [
+        AddressTransform(
+            layer="ocr_repair", transformation=name,
+            reason_code=REASON_ADDRESS_OCR_REPAIRED, automation_class=AUTO_FIX,
+            boundary_before=b, boundary_after=b, moved_fragment_indices=(),
+            original_address_1=a1, original_address_2=a2,
+            final_address_1=a1, final_address_2=a2,
+            manual_review_required=False, detail=detail,
+        )
+        for name, detail in entries
+    ]
 
 
 def _move(
@@ -480,6 +538,33 @@ def _check_geography_leak(layout: AddressLayout, geography: Mapping[str, str]) -
         if state and (canonical_state(text) or "").casefold() == state.casefold():
             return ["BC-07"]
     return []
+
+
+_GEO_TAIL_MAX_TOKENS = 3
+
+
+def _geography_unresolved(layout: AddressLayout, geography: Mapping[str, str]) -> list[str]:
+    """Why the geography of a comma-less address cannot be trusted, if it
+    cannot: City or State not extracted, or the LAST fragment (where Indian
+    addresses put the place names) still ends in a known state or city name.
+    Only the last 1-3 tokens of the last fragment are looked at, so a place
+    name used inside a street or estate name ("NAGPUR ROAD") is not matched.
+    Report-only: nothing is peeled, moved or rewritten (plan §4, D5)."""
+    from .address_lookups import canonical_state, is_known_city
+
+    reasons = []
+    if not (geography.get("city") or "").strip():
+        reasons.append("city not found")
+    if not (geography.get("state") or "").strip():
+        reasons.append("state not found")
+    if layout.fragments:
+        tokens = layout.fragments[-1].text.split()
+        for k in range(min(_GEO_TAIL_MAX_TOKENS, len(tokens)), 0, -1):
+            tail = " ".join(tokens[-k:])
+            if canonical_state(tail) or is_known_city(tail):
+                reasons.append(f"place name {tail!r} is still in the address text")
+                break
+    return reasons
 
 
 def _check_semantic_role_preserved(sem: SemanticLayout, final: AddressLayout) -> list[str]:

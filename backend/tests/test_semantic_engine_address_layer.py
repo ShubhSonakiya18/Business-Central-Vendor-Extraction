@@ -124,6 +124,20 @@ class TestResolverPathLayerOn:
         codes = [e.get("reason_code") for e in r.needs_review]
         assert "FIELD_NOT_FOUND" in codes
 
+    def test_geography_unresolved_reaches_needs_review(self, engine, layer_on):
+        """Audit case 28: comma-less text whose city/state were not peeled is
+        flagged for review; nothing is invented or moved."""
+        r = _result(address_1="2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD GUWAHATI ASSAM")
+        engine._resolve_combined_address(r)
+        flagged = [e for e in r.needs_review if e.get("reason_code") == "GEOGRAPHY_UNRESOLVED"]
+        assert len(flagged) == 1
+        assert flagged[0]["field"] == "address_1"
+        assert flagged[0]["automation_class"] == "MANUAL_REVIEW"
+        assert (_v(r, "address_1"), _v(r, "address_2")) == (
+            "2ND FLOOR", "SILICON PLAZA, RING ROAD, ZOO ROAD, GUWAHATI ASSAM")
+        assert (_v(r, "city"), _v(r, "state")) == ("", "")
+        assert "bc_address_layer: MANUAL_REVIEW" in " ".join(r.fields["address_1"].notes)
+
     def test_case14_extracted_country_replaces_default_only(self, engine, layer_on):
         r = _result(address_1="9 LODHI ROAD, NEW DELHI, Delhi, 110003, INDIA")
         engine._resolve_combined_address(r)

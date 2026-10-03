@@ -287,6 +287,136 @@ class TestGeographyGuard:
 
 
 # ---------------------------------------------------------------------------
+# OCR repair logging (plan §7 rows "OCR de-glue / inferred comma-less
+# boundaries" -> AUTO_FIX ADDRESS_OCR_REPAIRED, and "inferred boundaries and
+# every fragment unknown" -> MANUAL_REVIEW LOW_CONFIDENCE; §16 D2/D4)
+# ---------------------------------------------------------------------------
+
+class TestOcrRepairProvenance:
+    def test_deglue_is_logged_as_auto_fix_without_changing_layout(self):
+        addr = "4THFLOOR, NAGPURROAD, WARDHAMAN NAGAR, NAGPUR, MAHARASHTRA"
+        r = _on(addr)
+        rep = r.representation
+        ocr = [t for t in rep["transforms"] if t["reason_code"] == "ADDRESS_OCR_REPAIRED"]
+        assert len(ocr) == 1
+        assert ocr[0]["layer"] == "ocr_repair"
+        assert ocr[0]["transformation"] == "ocr_deglue"
+        assert ocr[0]["automation_class"] == "AUTO_FIX"
+        assert ocr[0]["manual_review_required"] is False
+        assert "4THFLOOR" in ocr[0]["detail"] and "4TH FLOOR" in ocr[0]["detail"]
+        assert ocr[0]["boundary_before"] == ocr[0]["boundary_after"]
+        assert rep["status"] == "AUTO_FIX"
+        assert r.findings == []  # AUTO_FIX is never a review finding
+        assert (r.address_1, r.address_2) == ("4TH FLOOR", "NAGPURROAD, WARDHAMAN NAGAR")
+        off = _off(addr)
+        assert (r.address_1, r.address_2) == (off.address_1, off.address_2)
+
+    def test_comma_less_boundaries_are_logged(self):
+        addr = "2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD GUWAHATI ASSAM"
+        r = _on(addr)
+        ocr = [t for t in r.representation["transforms"]
+               if t["reason_code"] == "ADDRESS_OCR_REPAIRED"]
+        assert [t["transformation"] for t in ocr] == ["comma_less_boundary_inference"]
+        assert ocr[0]["automation_class"] == "AUTO_FIX"
+        off = _off(addr)
+        assert (r.address_1, r.address_2) == (off.address_1, off.address_2)
+
+    def test_comma_less_with_resolved_geography_is_auto_fix(self):
+        r = _on("2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD 781005")
+        assert [t["reason_code"] for t in r.representation["transforms"]] == ["ADDRESS_OCR_REPAIRED"]
+        assert r.findings == []
+        assert r.representation["status"] == "AUTO_FIX"
+
+    def test_clean_address_has_no_ocr_entry(self):
+        r = _on("F-192, Phase 8B, Industrial Area, Sector 74, SAS Nagar, Punjab 160055")
+        assert r.representation["transforms"] == []
+        assert r.representation["status"] == "AUTO_PASS"
+
+    def test_inferred_and_all_unknown_needs_review(self):
+        sem = SemanticLayout(
+            fragments=tuple(LayoutFragment(i, t, "unknown", ADDRESS_2, ADDRESS_2)
+                            for i, t in enumerate(("MOHIARY", "CHANDIBAGAN", "ANDUL"))),
+            semantic_boundary=0, boundaries_inferred=True,
+        )
+        d = represent_address(sem, LIMITS)
+        assert [t.reason_code for t in d.transforms] == ["ADDRESS_OCR_REPAIRED", "ADDRESS_1_BACKFILLED"]
+        assert [(f.reason_code, f.automation_class) for f in d.findings] == [
+            ("LOW_CONFIDENCE", "MANUAL_REVIEW")]
+        assert d.status.value == "MANUAL_REVIEW"
+        assert (d.address_1, d.address_2) == ("MOHIARY, CHANDIBAGAN", "ANDUL")
+
+    def test_inferred_with_a_recognised_fragment_is_not_low_confidence(self):
+        sem = SemanticLayout(
+            fragments=(LayoutFragment(0, "2ND FLOOR", "premises_unit", ADDRESS_1, ADDRESS_1),
+                       LayoutFragment(1, "GUWAHATI ASSAM", "unknown", ADDRESS_2, ADDRESS_2)),
+            semantic_boundary=1, boundaries_inferred=True,
+        )
+        d = represent_address(sem, LIMITS)
+        assert d.findings == ()
+        assert d.status.value == "AUTO_FIX"
+
+
+# ---------------------------------------------------------------------------
+# GEOGRAPHY_UNRESOLVED (plan §7, D5; audit case 28): comma-less source text
+# whose City/State were not found, or whose last line still ends in a known
+# place name -> MANUAL_REVIEW. Report-only: text is never peeled or moved.
+# ---------------------------------------------------------------------------
+
+class TestGeographyUnresolved:
+    CASE_28 = "2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD GUWAHATI ASSAM"
+
+    @staticmethod
+    def _geo(r):
+        return [f for f in r.findings if f["reason_code"] == "GEOGRAPHY_UNRESOLVED"]
+
+    def test_case_28_needs_review_and_text_is_untouched(self):
+        r = _on(self.CASE_28)
+        [f] = self._geo(r)
+        assert f["automation_class"] == "MANUAL_REVIEW"
+        for part in ("city not found", "state not found", "'ASSAM'"):
+            assert part in f["detail"]
+        assert r.representation["status"] == "MANUAL_REVIEW"
+        assert (r.address_1, r.address_2) == (
+            "2ND FLOOR", "SILICON PLAZA, RING ROAD, ZOO ROAD, GUWAHATI ASSAM")
+        assert (r.city, r.state) == ("", "")  # nothing invented
+
+    def test_state_known_from_pin_but_still_in_text(self):
+        r = _on(self.CASE_28 + " 781005")
+        [f] = self._geo(r)
+        assert "'ASSAM'" in f["detail"] and "not found" not in f["detail"]
+        assert r.address_2.endswith("GUWAHATI ASSAM")  # still not peeled
+
+    def test_glued_city_fragment_keeps_bc07_block_and_explains_it(self):
+        r = _on("PLOT 45 INDUSTRIAL AREA PHASE 2 CHANDIGARH 160002")
+        codes = {f["reason_code"] for f in r.findings}
+        assert codes == {"ADDRESS_INVARIANT_VIOLATION", "GEOGRAPHY_UNRESOLVED"}
+        assert r.representation["status"] == "BLOCK_SUBMISSION"  # BLOCK still wins
+
+    def test_comma_less_and_fully_resolved_is_not_flagged(self):
+        assert not self._geo(_on("2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD 781005"))
+
+    @pytest.mark.parametrize("addr", [
+        "2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD, GUWAHATI, ASSAM",
+        "2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD\nGUWAHATI ASSAM",
+        "4THFLOOR, NAGPURROAD, WARDHAMAN NAGAR, NAGPUR, MAHARASHTRA",
+        "Unknown A, Unknown B, SAS Nagar, Punjab 160062",
+    ])
+    def test_addresses_with_commas_or_line_breaks_are_out_of_scope(self, addr):
+        assert not self._geo(_on(addr))
+
+    def test_flag_off_is_unchanged(self):
+        r_off = _off(self.CASE_28)
+        assert r_off.representation is None
+        assert (r_off.address_1, r_off.address_2) == (_on(self.CASE_28).address_1,
+                                                      _on(self.CASE_28).address_2)
+
+    def test_corpus_only_true_leaks_are_flagged(self):
+        flagged = sorted(c["id"] for _, c in _ALL_RAW if self._geo(_on(c["address"])))
+        assert flagged == ["ho11_commaless_premises_road_locality",
+                           "ho12_commaless_single_locality_stays_whole"]
+
+
+# ---------------------------------------------------------------------------
 # bc_expect corpus blocks (plan section 11.3)
 # ---------------------------------------------------------------------------
 

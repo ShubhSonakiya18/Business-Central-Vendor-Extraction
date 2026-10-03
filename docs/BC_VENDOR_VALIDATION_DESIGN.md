@@ -33,7 +33,7 @@ Each finding has `code`, `class`, `severity`, `field`, `constraint_id`, `message
 | Code | Meaning | Typical cause | Default automation |
 |---|---|---|---|
 | `FIELD_NOT_FOUND` | Required field has no candidate | Document missing, caption not matched | MANUAL_REVIEW |
-| `LOW_CONFIDENCE` | Winner score below `min_accept` (0.60 today) | Weak label/position evidence | MANUAL_REVIEW |
+| `LOW_CONFIDENCE` | Winner score below `min_accept` (0.60 today); for addresses, comma-less boundaries were inferred and no fragment was recognised (ADDRESS_SEGMENTATION_PLAN D2) | Weak label/position evidence | MANUAL_REVIEW |
 | `CAPTION_LEAK` | Value is another field's caption | Layout mis-read (see `onboarding_mapper._is_caption_leak`) | MANUAL_REVIEW |
 | `OCR_AMBIGUOUS_CHAR` | Value contains OCR-ambiguous glyphs in positions that must be digits or letters | `O/0`, `I/1`, `S/5`, `B/8`, `Z/2`, `G/6` | MANUAL_REVIEW |
 | `DOCUMENT_UNREADABLE` | File couldn't be loaded or OCR'd | Corrupt file, unsupported type | BLOCK_SUBMISSION |
@@ -44,7 +44,7 @@ Each finding has `code`, `class`, `severity`, `field`, `constraint_id`, `message
 | Code | Meaning | Constraint | Default automation |
 |---|---|---|---|
 | `FIELD_REQUIRED` | Business-required or BC-required value missing | C-REQ-02/04/05, C-PAN-05 | BLOCK_SUBMISSION |
-| `FIELD_TOO_LONG` | Longer than the BC target length (after trim) | C-LEN-* | BLOCK_SUBMISSION |
+| `FIELD_TOO_LONG` | A single-value field longer than the BC target length (after trim). Never used for Address / Address 2 (see `ADDRESS_BC_LENGTH_REBALANCE`, `ADDRESS_OVERFLOW`) | C-LEN-01, 05–07, 10–12, 16 | BLOCK_SUBMISSION |
 | `INVALID_FORMAT` | Generic format/enum failure | C-TYP-04 | BLOCK_SUBMISSION |
 | `INVALID_GSTIN` | Length, character class, state prefix or **checksum** failure | C-GST-05/06/19, C-LEN-14 | BLOCK_SUBMISSION |
 | `INVALID_PAN` | Regex or holder-type failure | C-PAN-01/02, C-LEN-15 | BLOCK_SUBMISSION |
@@ -70,6 +70,10 @@ Each finding has `code`, `class`, `severity`, `field`, `constraint_id`, `message
 | `MISSING_TDS_CONFIGURATION` | TDS applicable but no Assessee Code or Section decided | C-TDS-01/02 | MANUAL_REVIEW |
 | `ADDRESS_BC_LENGTH_REBALANCE` | Boundary moved to fit BC widths (content unchanged) | C-ADR-03 | MANUAL_REVIEW (warning, one click) |
 | `ADDRESS_OVERFLOW` | No boundary satisfies 100/50 | C-ADR-03 | BLOCK_SUBMISSION |
+| `ADDRESS_1_BACKFILLED` | Address 1 empty after segmentation; the first fragment(s) moved into it | C-ADR-10 | AUTO_FIX (logged) |
+| `ADDRESS_OCR_REPAIRED` | OCR de-glue, or boundaries inferred in comma-less text | – | AUTO_FIX (logged) |
+| `ADDRESS_INVARIANT_VIOLATION` | A final address-layout invariant failed (system error) | S-01…S-08, BC-01…BC-12 | BLOCK_SUBMISSION |
+| `GEOGRAPHY_UNRESOLVED` | Comma-less address whose City/State were not found, or whose last line still ends in a place name | – | MANUAL_REVIEW |
 | `DERIVED_VALUE_UNCONFIRMED` | Inferred value (website from e-mail, city from PIN) not yet confirmed | C-NRM-09 | MANUAL_REVIEW |
 | `DUPLICATE_VENDOR` | Normalized name matches an existing BC vendor | C-DUP-06 | MANUAL_REVIEW |
 | `DUPLICATE_GSTIN` | GSTIN already on a BC vendor (or portal record) | C-DUP-03/08 | BLOCK_SUBMISSION |
@@ -148,7 +152,7 @@ Decision table (including the brief's examples):
 | Existing BC vendor with the same bank account | **MANUAL_REVIEW** (fraud check) |
 | Custom tenant field of unknown length/meaning | **BLOCK_SUBMISSION** for that field until Q2/Q3 are answered |
 
-A record may be pushed only if it has **zero BLOCK findings and zero open MANUAL_REVIEW findings**. Every MANUAL_REVIEW resolution is stored: who, when, old value, new value.
+A record may be pushed only if it has **zero BLOCK findings and zero open MANUAL_REVIEW findings**. Each reason code closes only through the mechanism in the ADDRESS_SEGMENTATION_PLAN §7 closure matrix (confirm, correct or recompute). Confirmation is allowed only for genuinely reviewable findings. Every MANUAL_REVIEW resolution is stored: who, when, old value, new value.
 
 ---
 

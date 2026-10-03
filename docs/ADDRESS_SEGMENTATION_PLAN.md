@@ -111,7 +111,7 @@ RAW ADDRESS
   ├─ 8 FINAL VALIDATION               invariants S-01…S-08 + BC-01…BC-12; failure = BLOCK
   ├─ 9 MANUAL REVIEW DECISION         one-click confirm (hash-bound) or manual edit
   └─ 10 BC PUSH                       payload gate re-runs 6–8 on stored values (check-only);
-                                      requires no BLOCK and no unconfirmed review
+                                      requires no BLOCK and no OPEN MANUAL_REVIEW (§7 closure matrix)
 ```
 
 Mapping to the research pipeline (PIPELINE): steps 1–8 run in **PIPELINE stage 5** at extraction time. Steps 9–10 correspond to the review UI and to **stage 11** (the payload gate) followed by **stage 12** (push). The gate is check-only: it never rewrites stored values.
@@ -217,6 +217,7 @@ All of these are **SEMANTIC_RULE**.
 1. **Structural.** The fallback receives only the `fragments` list produced after the geography peel. It has no access to the geography values and no string-level operation on the original address.
 2. **Guard.** Step 8's check S-06/BC-07 fails the record if any A1/A2 fragment equals (casefolded) an extracted city, state, country or PIN value, or one of their aliases (`cities.txt` alias section, state aliases).
    - Honest limit: a place name the resolver did not recognise is, by definition, an address fragment.
+   - Exception for comma-less text: the peel matches whole comma segments, so a place name the resolver *does* know can stay glued to the address text (`… ZOO ROAD GUWAHATI ASSAM`). Nothing is peeled, moved or rewritten for it. Instead the record gets `GEOGRAPHY_UNRESOLVED` (§7, D5) and a human fixes City/State and the line. A strict, PIN-verified extraction of a trailing `CITY STATE PIN` suffix is designed but **deferred and not implemented** (§18).
    - A district that was not chosen as the city stays a fragment legitimately (e.g. `Tikamgarh` in eval case `two_districts_pin_disambiguates`). The guard therefore compares against the **extracted values**, not against every gazetteer name.
 3. **No reopening.** Nothing in steps 5–8 calls the resolver's geography functions again.
 
@@ -248,7 +249,7 @@ Only constraints already documented in the research are used. **Nothing new abou
 
 **Scope of the checks:**
 - **Step 6** checks the two address-line limits on the joined text, using the profile separator `", "`.
-- **The gate** additionally checks the other field constraints above. Those produce `FIELD_TOO_LONG`, `INVALID_COUNTRY` or `INVALID_PIN` findings. They never cause a rebalance, and **never modify geography**.
+- **The gate** additionally checks the other field constraints above. Those produce `FIELD_TOO_LONG` (single-value fields only, never Address / Address 2), `INVALID_COUNTRY` or `INVALID_PIN` findings. They never cause a rebalance, and **never modify geography**.
 - The country name → code mapping happens only when the payload is built. The stored `country` value is never changed.
 
 **Target path:**
@@ -345,21 +346,52 @@ rebalance(frags, b, max1, max2, sep, floor):
 | A1 > 100 at the semantic boundary, safe left shift exists | MANUAL_REVIEW — one click | `ADDRESS_BC_LENGTH_REBALANCE` (constraint `BC_ADDRESS_1_MAX_LENGTH`) |
 | Backfill followed by a rebalance | MANUAL_REVIEW — one click (the stricter class wins) | both codes, two provenance entries |
 | Step-8 invariant fails (code defect) | BLOCK_SUBMISSION | `ADDRESS_INVARIANT_VIOLATION` |
-| Stage 11: stored/edited A1 or A2 over its limit | MANUAL_REVIEW / BLOCK, with a one-click proposal when a safe rebalance exists | `FIELD_TOO_LONG` |
+| Stage 11: stored/edited A1 or A2 over its limit, safe whole-fragment re-layout exists | MANUAL_REVIEW — one click (confirming writes the proposal) | `ADDRESS_BC_LENGTH_REBALANCE` (constraint `BC_ADDRESS_1_MAX_LENGTH` / `BC_ADDRESS_2_MAX_LENGTH`) |
+| Stage 11: stored/edited A1 or A2 over its limit, no safe re-layout | MANUAL_REVIEW / BLOCK (edit by hand) | `ADDRESS_OVERFLOW` (`detail: fragment_too_long` when one fragment cannot be placed) |
 | Stage 11: legacy `address_3/4` non-empty | one-click proposal if safe, else MANUAL_REVIEW / BLOCK | `ADDRESS_BC_LENGTH_REBALANCE` / `ADDRESS_OVERFLOW`, constraint `BC_NO_ADDRESS_3_4` |
 | OCR de-glue / inferred comma-less boundaries | AUTO_FIX (logged) | `ADDRESS_OCR_REPAIRED` |
 | Inferred boundaries **and** every fragment `unknown` | MANUAL_REVIEW | `LOW_CONFIDENCE` |
+| Source text has no comma and no line break, **and** City or State was not extracted, or the last 1–3 words of the last fragment are a known state/city name | MANUAL_REVIEW (text unchanged; never peeled, moved or auto-fixed) | `GEOGRAPHY_UNRESOLVED` |
 | A1 and A2 both empty after the geography peel | MANUAL_REVIEW | `FIELD_NOT_FOUND` |
-| City/County > 30, bad PIN, unmapped country, PIN↔state mismatch, city derived from PIN | as in REGISTRY | `FIELD_TOO_LONG`, `INVALID_PIN`, `INVALID_COUNTRY`, `PIN_STATE_MISMATCH`, `DERIVED_VALUE_UNCONFIRMED` |
+| Name, City, County, Post Code, Phone, Mobile, E-Mail or Home Page over its profile limit; bad PIN; unmapped country; PIN↔state mismatch; city derived from PIN | as in REGISTRY | `FIELD_TOO_LONG`, `INVALID_PIN`, `INVALID_COUNTRY`, `PIN_STATE_MISMATCH`, `DERIVED_VALUE_UNCONFIRMED` |
+
+**Terminology — length findings.** `FIELD_TOO_LONG` is used only for single-value fields, which have no whole-fragment re-layout (Name, City, County, Post Code, Phone, Mobile, E-Mail, Home Page; C-LEN-01, 05–07, 10–12). Address and Address 2 **never** produce `FIELD_TOO_LONG`. Their length is handled only by `ADDRESS_BC_LENGTH_REBALANCE` (a safe re-layout exists) and `ADDRESS_OVERFLOW` (none exists), at extraction time and at the gate alike. One situation has exactly one reason code.
 
 **One-click flow:**
 1. Extraction applies the AFTER values and opens the finding.
 2. The review page shows BEFORE and AFTER, with **Confirm** or **Edit manually**.
 3. Confirm stores the reviewer, the time and a SHA-256 of the trimmed final A1/A2.
-4. At push, the gate re-runs steps 6–8 (**final BC validation after confirmation**). It treats the finding as closed only while the stored A1/A2 still match that hash.
-5. An edit after confirmation re-opens the checks. Edited values that fit are accepted as human-authored.
+4. At push, the gate re-runs steps 6–8 (**final BC validation after confirmation**). The finding stays closed only while the stored values of its covered fields (closure matrix below) still match the fingerprint.
+5. An edit after confirmation re-opens the checks. Edited values are human-authored; they close a finding only as the closure matrix allows.
 
-**Push rule:** zero BLOCK findings and zero unconfirmed MANUAL_REVIEW findings (DESIGN L151).
+**Push rule:** zero BLOCK findings and zero **open** MANUAL_REVIEW findings (DESIGN L151). This applies to **every** MANUAL_REVIEW reason code, not only the rebalance.
+
+**Closure rule.** Every finding has exactly one closure mechanism, named in the matrix below:
+
+- **Confirm.** Allowed only for a finding a human can genuinely judge by looking at it. The reviewer confirms that one reason code. The confirmation stores the reason code, the reviewer, the time and a **fingerprint**: SHA-256 of the trimmed values of the finding's covered fields, joined with `\n`, in the matrix order. (For `ADDRESS_BC_LENGTH_REBALANCE` this is exactly today's `A1\nA2` hash, so existing confirmations stay valid.) A confirmation counts only while the stored values still produce the same fingerprint. Any change to a covered field invalidates it.
+- **Correct.** A covered field is changed and the gate's re-check of the **stored** values no longer finds the condition. An edit that leaves the condition in place does not close the finding. Findings that can only be corrected cannot be confirmed away.
+- **Recompute.** Findings the gate computes from stored values are recomputed on every payload request and disappear when their condition is gone.
+
+Every edited value is human-authored and goes through steps 6–8 and the other gate checks again, whatever finding it closed. Anything not closed is **open**, and the payload endpoint answers 409 with the open findings. Records without `raw_extraction` (entered by hand) carry no extraction-time findings; only gate-computed findings apply to them.
+
+**Reason-code closure matrix:**
+
+| Reason code | Class | Raised at | Covered fields (fingerprint order) | Gate re-check on stored values | Closure | Confirmable |
+|---|---|---|---|---|---|---|
+| `ADDRESS_1_BACKFILLED` | AUTO_FIX | extraction (step 5) | – | – | none needed (logged in provenance, never a review finding) | – |
+| `ADDRESS_OCR_REPAIRED` | AUTO_FIX | extraction (segmenter) | – | – | none needed (logged in provenance, never a review finding) | – |
+| `ADDRESS_BC_LENGTH_REBALANCE` | MANUAL_REVIEW | extraction (step 7) | address_1, address_2 | steps 6–8 | confirm the split; or correct (an edit after which steps 6–8 pass) | **Yes** |
+| `ADDRESS_BC_LENGTH_REBALANCE` | MANUAL_REVIEW | gate (stage 11: over-limit or legacy A3/A4) | address_1, address_2, address_3, address_4 | steps 6–8 | confirm the proposal (the lossless re-layout is written, A3/A4 cleared); or correct by hand | **Yes** (only the gate's own lossless proposal) |
+| `LOW_CONFIDENCE` | MANUAL_REVIEW | extraction | address_1, address_2 | none (no stored-value signal) | confirm the split as read; or correct (any edit of a covered field) | **Yes** |
+| `GEOGRAPHY_UNRESOLVED` | MANUAL_REVIEW | extraction | address_1, address_2, city, state, pin_code | City and State non-empty, and the last 1–3 words of the stored last line are not a known state/city | correct; confirm is allowed **only once City and State are non-empty** (the reviewer accepts that a trailing name is a real locality, e.g. `NEHRU NAGAR`) | **Partly** (never while City or State is empty) |
+| `FIELD_NOT_FOUND` (address) | MANUAL_REVIEW | extraction | address_1, address_2 | A1 or A2 non-empty | correct only | **No** |
+| `INVALID_COUNTRY` | MANUAL_REVIEW | gate | country | country maps to a profile code | recompute (fix the value or the profile mapping) | **No** (BC would reject the record) |
+| `ADDRESS_OVERFLOW` | BLOCK_SUBMISSION | extraction (step 7) / gate | address_1, address_2 (+ legacy 3/4) | steps 6–8 | correct only (edit until a whole-fragment layout fits) | **No** |
+| `ADDRESS_INVARIANT_VIOLATION` | BLOCK_SUBMISSION (system error) | extraction (step 8) / gate | address_1, address_2, city, state, country, pin_code | steps 6–8 including BC-07 | correct only; the record stays blocked until a re-run of steps 6–8 on the stored values passes. Investigated as a defect, never reviewed away | **No** |
+| `FIELD_TOO_LONG` | BLOCK_SUBMISSION | gate | the one field | profile length | recompute (edit the value) | **No** |
+| `INVALID_PIN` | BLOCK_SUBMISSION | gate | pin_code | 6-digit Indian PIN | recompute (edit the value) | **No** |
+
+**Implementation status (2026-10-03).** The gate already enforces this for `ADDRESS_BC_LENGTH_REBALANCE` (both rows) and for every gate-computed finding. Enforcing the extraction-time `LOW_CONFIDENCE`, `GEOGRAPHY_UNRESOLVED` and `FIELD_NOT_FOUND` findings at push is approved policy that is **not yet implemented**. Today they are shown on the review page only.
 
 ---
 
@@ -373,7 +405,7 @@ Nothing parallel is built. The plan extends what exists today:
    - AUTO_FIX never appears in `needs_review` / `fields_needing_review`.
    - Existing entries have no `automation_class` and keep their meaning (informational).
 3. Everything travels in the extraction result, which is already persisted in **`Vendor.raw_extraction`**. That column is the immutable extraction-time record.
-4. **Reviewer confirmation** goes in a new **`Vendor.address_review` JSON** column (Alembic migration). It stores the reason code, final A1/A2, the hash, `confirmed_by_user_id` and `confirmed_at`.
+4. **Reviewer confirmation** goes in a new **`Vendor.address_review` JSON** column (Alembic migration). It stores the reason code, final A1/A2, the hash, `confirmed_by_user_id` and `confirmed_at`. With the §7 closure rule it holds one confirmation per confirmable reason code: `{"confirmations": {"<REASON_CODE>": {"fields": [...], "values_sha256": "...", "confirmed_by_user_id": n, "confirmed_at": "..."}}}`. The existing top-level keys are still written for `ADDRESS_BC_LENGTH_REBALANCE` and are read as that reason's confirmation, so records confirmed before this change stay confirmed (no data migration).
 
 **Semantic layout** (recorded once):
 ```json
@@ -711,6 +743,8 @@ Each step is its own commit, with the full test and eval command set green after
 - **D2:** `LOW_CONFIDENCE` review applies only to inferred boundaries where every fragment is `unknown`.
 - **D3:** confirmations are stored in the new `address_review` column, not written into `raw_extraction`.
 - **D4:** two new codes, `ADDRESS_OCR_REPAIRED` and `ADDRESS_INVARIANT_VIOLATION`, are added to the DESIGN §2 taxonomy.
+- **D5:** `GEOGRAPHY_UNRESOLVED` applies only to source text with no comma and no line break. It is MANUAL_REVIEW (never BLOCK, never auto-fixed) and looks only at the last 1–3 words of the last fragment. A leaked fragment that exactly equals an extracted city/state is still a BC-07 BLOCK; `GEOGRAPHY_UNRESOLVED` is added beside it to explain why. Automatic trailing-word geography extraction is **not** part of this plan; a strict `CITY → STATE → PIN` suffix extraction is preserved as deferred future work in §18 (not implemented).
+- **D6:** every finding closes only through the mechanism the §7 closure matrix names. Confirmation is limited to genuinely reviewable findings. `FIELD_NOT_FOUND` and `INVALID_COUNTRY` need a correction. `ADDRESS_INVARIANT_VIOLATION` stays a blocking system error.
 
 ---
 
@@ -734,6 +768,166 @@ Each step is its own commit, with the full test and eval command set green after
 | Hard-coded limits | `master` has literals; the plan uses constraint IDs | Grep test; profile loader with no defaults |
 | Undocumented Microsoft claims | Every MICROSOFT_BC_CONSTRAINT row cites C-LEN/C-ADR/C-MD/C-TYP with sources S02/S04/S28. Unknowns are marked TENANT | – |
 | Tests weakened | None. Conflicting expectations are migrated with a reason given (§11.3) | – |
+| One situation, two reason codes | Stage-11 address length was `FIELD_TOO_LONG` while extraction used `ADDRESS_OVERFLOW` (29-case audit, 2026-10-03) | Address lines use only `ADDRESS_BC_LENGTH_REBALANCE` / `ADDRESS_OVERFLOW`; `FIELD_TOO_LONG` is for single-value fields only |
+| Review findings with no closure | The gate enforced confirmation only for the rebalance, so `FIELD_NOT_FOUND` / `LOW_CONFIDENCE` could be pushed unreviewed (audit) | §7 closure matrix (D6); gate enforcement pending |
+| Comma-less geography silently AUTO_PASS | Case 28: City/State empty, `GUWAHATI ASSAM` left in Address 2, no finding (audit) | `GEOGRAPHY_UNRESOLVED` → MANUAL_REVIEW (D5) |
+| OCR repair silent | De-glue / inferred boundaries were only a segmenter note (audit case 18) | `ADDRESS_OCR_REPAIRED` provenance entry, AUTO_FIX |
+
+---
+
+## 18. DEFERRED / FUTURE ADDRESS SEGMENTATION WORK
+
+> **STATUS: NOT IMPLEMENTED. Paused on 2026-10-03 by decision of the project owner.**
+> Nothing in this section exists in code. No production code, test expectation, dataset or reason code was added for it.
+> When address segmentation work resumes ("continue the deferred address segmentation work"), start here:
+> 1. Re-read this section.
+> 2. Re-check §18.1 against the code, because the code may have moved on.
+> 3. Settle the open decisions in §18.6.
+> 4. Only then change code.
+
+### 18.1 Implementation state at the time of the pause
+
+| Item | State |
+|---|---|
+| Two-layer pipeline, backfill, BC rebalance, payload gate, lossless mapper (§§1–9) | Implemented |
+| `ADDRESS_OCR_REPAIRED` (OCR de-glue / inferred comma-less boundaries, AUTO_FIX, logged) | Implemented (`address_representation._ocr_repair_transforms`) |
+| `LOW_CONFIDENCE` (inferred boundaries + every fragment unknown, MANUAL_REVIEW) | Implemented |
+| `GEOGRAPHY_UNRESOLVED` (D5: comma-less, line-break-free text whose City/State are missing, or whose last fragment still ends in a known state/city) | Implemented as **report-only** MANUAL_REVIEW. Text is never peeled or moved (`address_representation._geography_unresolved`) |
+| 29-case audit suite | Implemented: `backend/app/eval/address_audit29_cases.yaml`, `backend/tests/test_address_audit29.py` |
+| Universal MANUAL_REVIEW closure matrix (§7, D6) | **Policy documented; gate enforcement NOT implemented.** The gate enforces only `ADDRESS_BC_LENGTH_REBALANCE` and gate-computed findings |
+| Strict comma-less `CITY → STATE → PIN` suffix extraction (this section) | **NOT implemented** |
+
+**What a comma-less address does today** (BC layer on). This is measured behaviour, not design:
+
+| Input | City / State / PIN today | Address 2 today | Finding |
+|---|---|---|---|
+| `2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD GUWAHATI ASSAM` (audit case 28) | "" / "" / "" | `SILICON PLAZA, RING ROAD, ZOO ROAD, GUWAHATI ASSAM` | `GEOGRAPHY_UNRESOLVED` |
+| `… ZOO ROAD GUWAHATI ASSAM 781005` | Kamrup Metro / Assam / 781005 (**derived from the PIN**) | `…, GUWAHATI ASSAM` | `GEOGRAPHY_UNRESOLVED` |
+| `SHOP 12 MAIN BAZAR NAGPUR MAHARASHTRA 440010` | Nagpur / Maharashtra / 440010 | `MAIN BAZAR, NAGPUR MAHARASHTRA` | `GEOGRAPHY_UNRESOLVED` |
+| `IT PARK PHASE 8 MOHALI PUNJAB 160059` | S.A.S Nagar / Punjab / 160059 | `MOHALI PUNJAB` | `GEOGRAPHY_UNRESOLVED` |
+
+So, today, a comma-less address that has a PIN gets a **partial, PIN-derived** extraction. `_strip_pin` removes the PIN from wherever it sits, the state comes from the PIN, and the city is the PIN's district. Meanwhile the written place names stay in the address lines. `GEOGRAPHY_UNRESOLVED` makes this visible, but does not fix it.
+
+### 18.2 Problem statement
+
+OCR'd and hand-typed vendor addresses often arrive as one line with no commas. The geography peel (`_drop_trailing_country`, `_strip_pin`, `_match_state`, `_pick_city`) matches **whole comma segments**, so it cannot separate a city and state glued onto the end of the address text. The result:
+- the city and state stay inside Address 2;
+- City and State are empty, or derived from the PIN instead of from the text.
+
+A reviewer has to fix every such record by hand, even when the address ends in a perfectly clear `NAGPUR MAHARASHTRA 440010`.
+
+**Proposed enhancement:** treat a missing comma inside an otherwise valid, PIN-verified `CITY → STATE → PIN` suffix as recoverable OCR damage. Extract that suffix, and only that suffix, when every strict check passes. Otherwise change nothing and leave the record for review.
+
+### 18.3 Scope
+
+| Applies | Does **not** apply (existing behaviour must stay unchanged) |
+|---|---|
+| Vendor address path (`resolve_address_blob(multiline=True)`) with the BC address layer on | Customer path (`multiline=False`); BC layer off (must stay byte-identical, §14 R1) |
+| Source text, after trimming, is **exactly one line**, contains **no comma** and **no line break** | Any address containing a comma, which keeps the existing comma-based extraction |
+| The text **ends** with the suffix `CITY STATE PIN` | Multi-line addresses (a line break counts as a separator today: `_segments`) |
+| | City/state words appearing anywhere other than the validated suffix (e.g. `NAGPUR ROAD`, `DELHI GATE`) |
+| | City/state with no PIN, or a PIN that does not validate against **both** |
+
+### 18.4 Strict validation rules (all must hold)
+
+1. **PIN.** The final whitespace-separated token is exactly 6 digits matching `[1-9]\d{5}`, and the PIN exists in `pin_directory.csv`.
+2. **State.** A span of 1–8 tokens (8 = the longest state name) ending immediately before the PIN is recognised by `canonical_state` (canonical names and the existing aliases) **and** equals the PIN's state.
+3. **City.** A span of 1–4 tokens ending immediately before the state span is recognised by `canonical_city` / `is_known_city`, **and** its canonical name equals the PIN's **district**. The comparison ignores case, spaces and punctuation, the same way the existing `_pick_city` normalises.
+4. **Order.** Exactly `CITY → STATE → PIN`, contiguous, at the very end. Anything else is a failure: `STATE CITY PIN`, a PIN that is not last, or a trailing country token.
+5. **Uniqueness.** Enumerate every (city span, state span) combination. **Exactly one** must pass rules 1–4. Zero or several means a failure, and the code must never guess (see §18.8).
+6. **Something remains.** After the suffix is removed, the remainder is non-empty.
+
+### 18.5 Behaviour
+
+**On success** (every rule in §18.4 holds):
+1. Set City, State and PIN from the suffix. The City value uses the same canonical / title-casing as `_pick_city`. Country = "India" (config default; `country_source` stays `default`).
+2. Remove **only** the suffix. The remainder is `original[:suffix_start].rstrip()`, so its text is preserved exactly.
+3. Pass the remainder through the **existing** segmentation (`segment_leftover`, including comma-less boundary injection) and the existing representation layer, unchanged. The segmenter, classifier, keywords and `_split_by_role` are not modified.
+4. Do **not** run `_strip_pin` / `_match_state` / `_pick_city` on the remainder. Otherwise a number such as `PLOT 411026` could be taken as a second PIN, or a word in the remainder taken as a state.
+5. Keep the existing `GEOGRAPHY_UNRESOLVED` post-check. If the remainder still ends in a known place name (e.g. `… BHOSARI PUNE PUNE MAHARASHTRA 411026` leaves `… BHOSARI PUNE`), the record still goes to review.
+6. Log the extraction in provenance. Design proposal, not decided: see §18.6 item 6.
+
+**On failure** (any rule in §18.4 fails):
+1. Do **not** partially extract City, State or PIN.
+2. Keep the original text exactly.
+3. Raise `GEOGRAPHY_UNRESOLVED` → MANUAL_REVIEW. Its detail names the failed check: no PIN / PIN not in directory / no state before the PIN / state ≠ PIN state / city not found / city ≠ PIN district / wrong order / more than one valid reading / nothing left over.
+4. The case then follows the existing review flow, with no guessing.
+
+Failure point 1 deliberately changes today's comma-less-with-PIN behaviour (§18.1: PIN-derived city/state with the place names left in the text). This was the recommended option and is recorded here as decided. The reviewer re-enters the PIN, and the PIN text stays in the address lines until then.
+
+### 18.6 Decisions
+
+**Decided (2026-10-03):**
+1. **Scope** as in §18.3: single-line, comma-less vendor addresses only. Comma-based and multi-line behaviour is unchanged.
+2. **Strict validation** as in §18.4: PIN final and correctly formatted, state = PIN state, city = PIN district under the currently available data. No partial extraction.
+3. **Failure behaviour** as in §18.5: nothing extracted, text unchanged, `GEOGRAPHY_UNRESOLVED`, existing review flow.
+4. **Ambiguity:** never guess (§18.8).
+
+**Open (settle before implementing):**
+5. **City → district data (known data limitation; do not solve until resumed).** `pin_directory.csv` maps each of its 19,586 PINs to exactly one (district, state). Cross-district collisions were "kept first" by `app.cli.build_address_lookups`, so a rare border PIN can fail and go to review, which is the safe direction. `cities.txt` is a flat list of 769 names with only 2 aliases. It has **no** city → district or city → state mapping. A city therefore validates only when it *is* the PIN's district. Legitimate addresses that fail strict validation today:
+   - **Mohali** → district **S.A.S Nagar** (PIN 160059)
+   - **Guwahati** → district **Kamrup Metro** (PIN 781005)
+   - **Navi Mumbai** → districts **Thane / Raigad**
+   - and likewise Bengaluru/Bangalore → Bengaluru Urban, Noida → Gautam Buddha Nagar, Gurgaon → Gurugram, Secunderabad → Hyderabad.
+
+   These relationships are currently only **comments** in `build_address_lookups._COMMON_CITY_ALIASES`, not data. **Future requirement:** an authoritative city → district/state mapping (e.g. a new `backend/data/address/city_districts.txt`, allowing several districts per city, or an equivalent authoritative dataset), used **only** by this validation. It must **not** be added as `cities.txt` aliases, because `canonical_city` would then rewrite the City value the comma-based path produces today (e.g. Guwahati → Kamrup Metro). Investigate the source and its authority when this work resumes.
+6. **Reason code for a successful extraction (DESIGN PROPOSAL, not decided).** Reuse the existing `ADDRESS_OCR_REPAIRED` (AUTO_FIX, provenance only), with `transformation: comma_less_geography_suffix` and a detail holding the suffix and the PIN checks, rather than adding a new code. Rationale: a missing comma before a PIN-verified suffix is OCR damage of the same kind as the existing comma-less boundary inference.
+7. **City = state union territories** written once (`SECTOR 17 CHANDIGARH 160017`). The proposal says strict: a failure. `… CHANDIGARH CHANDIGARH 160017` passes.
+8. **Trailing country after the PIN** (`… 440010 INDIA`). The proposal says strict: a failure.
+9. **PIN separators** (`MAHARASHTRA-440010`, `MAHARASHTRA440010`, `PIN 440010`). The proposal says strict: a failure.
+10. **State abbreviations** (`MH`, `UP`, `WB`, `NEW DELHI` → Delhi). The proposal accepts them, because the PIN must still confirm the state **and** the district.
+11. **Flag gating.** The proposal runs this only when `BC_ADDRESS_LAYER_ENABLED` is on, so the flag-off output stays byte-identical.
+
+### 18.7 Proposed implementation boundary (for when work resumes)
+
+- One new pure function, `_split_trailing_geography(text) -> (remainder, city, state, pin) | failure_reason`, in `address_resolver.py`. It uses only the existing lookups (`pin_state_district`, `canonical_state`, `canonical_city`, `is_known_city`).
+- It is called at the start of `resolve_address_blob` only under the §18.3 scope. On success, the remainder replaces the segment list and the normal geography peel is skipped. On failure, Decision 3 applies.
+- **Unchanged:** the comma-based peel, `address_segmenter.py`, `address_representation.py` (apart from logging, per Decision 6), the payload gate, `cities.txt`, `pin_directory.csv`, and the reason-code taxonomy (unless Decision 6 changes).
+- **Expected test churn:** four existing tests in `tests/test_address_bc_layer.py` (`TestGeographyUnresolved` / `TestOcrRepairProvenance`) use comma-less inputs that have a PIN but no validated city: `… ZOO ROAD 781005`, `… GUWAHATI ASSAM 781005`, `PLOT 45 … CHANDIGARH 160002`. Their expectations would change on purpose (no PIN-derived geography; the Chandigarh case moves from a BC-07 BLOCK to MANUAL_REVIEW), and each change must carry its reason.
+
+### 18.8 Ambiguity handling
+
+If more than one (city, state) reading passes every check, or the suffix cannot be read without assuming something the text does not say, the implementation must **not** pick one. The record stays unresolved (`GEOGRAPHY_UNRESOLVED`, detail "more than one valid reading") and goes to review. A city name shared by two states (Aurangabad, Maharashtra 431001 vs Bihar 824101) is **not** ambiguous, because the PIN decides it.
+
+### 18.9 Invariants
+
+- **Exact preservation:** `original_address == remaining_address + separator + extracted_geography_suffix`. Here `separator` is the original whitespace run between them, i.e. the remainder is `original[:suffix_start].rstrip()` and the suffix is `original[suffix_start:]`. No other normalisation is applied.
+- On failure, every geography field produced by this rule is empty, and the address text is the original text.
+- Source order and content are preserved; nothing is invented, reordered or deleted beyond the validated suffix.
+- Flag off, comma-based input and multi-line input behave byte-for-byte as before.
+- The 29-case audit suite stays green. Case 28 (no PIN) stays `GEOGRAPHY_UNRESOLVED`.
+
+### 18.10 Proposed test categories
+
+All PINs below were checked against `pin_directory.csv` on 2026-10-03.
+
+| Category | Example input | Expected |
+|---|---|---|
+| Valid | `SHOP 12 MAIN BAZAR NAGPUR MAHARASHTRA 440010` | Nagpur / Maharashtra / 440010; remainder `SHOP 12 MAIN BAZAR`; no finding |
+| Valid, multi-word city | `F 12 CONNAUGHT PLACE NEW DELHI DELHI 110001` | New Delhi / Delhi |
+| Valid, multi-word state | `PLOT 9 HOWRAH WEST BENGAL 711302` | Howrah / West Bengal |
+| Valid, city = district | `UNIT 7 SECTOR 12 GURUGRAM HARYANA 122001` | Gurugram / Haryana |
+| Valid, UT written twice | `SCO 284 SECTOR 17 CHANDIGARH CHANDIGARH 160017` | Chandigarh / Chandigarh |
+| Valid, same city name in two states | `GALI 4 AURANGABAD MAHARASHTRA 431001` | Aurangabad / Maharashtra (PIN decides) |
+| Valid, state abbreviation | `SHOP 3 MAIN ROAD NAGPUR MH 440010` | Nagpur / Maharashtra (if Decision 10 holds) |
+| Valid, remainder still ends in a place name | `… BHOSARI PUNE PUNE MAHARASHTRA 411026` | extracted, **and** `GEOGRAPHY_UNRESOLVED` from the post-check |
+| Invalid PIN | `… NAGPUR MAHARASHTRA 999999` | failure: PIN not in directory |
+| Missing PIN | `… NAGPUR MAHARASHTRA`; audit case 28 | failure: no PIN |
+| City/PIN mismatch | `… PUNE MAHARASHTRA 440010` | failure: city ≠ PIN district |
+| State/PIN mismatch | `… NAGPUR GUJARAT 440010` | failure: state ≠ PIN state |
+| Ambiguous-looking city, wrong state | `… AURANGABAD MAHARASHTRA 824101` | failure: PIN is Aurangabad, Bihar |
+| Wrong order | `… MAHARASHTRA NAGPUR 440010`; `… NAGPUR 440010 MAHARASHTRA` | failure: order |
+| No city | `… MAIN BAZAR MAHARASHTRA 440010` | failure: city not found |
+| Data limitation (§18.6 item 5) | `… GUWAHATI ASSAM 781005`; `IT PARK PHASE 8 MOHALI PUNJAB 160059` | failure: city ≠ PIN district (until the mapping exists) |
+| UT written once | `SECTOR 17 CHANDIGARH 160017` | failure (Decision 7) |
+| Trailing country / glued PIN | `… 440010 INDIA`; `… MAHARASHTRA-440010` | failure (Decisions 8, 9) |
+| Nothing left | `NAGPUR MAHARASHTRA 440010` | failure: nothing left over |
+| Multiple valid readings | built with stubbed lookup tables | failure: more than one valid reading |
+| Comma-based (out of scope) | `SHOP 12, MAIN BAZAR, NAGPUR, MAHARASHTRA 440010` | identical to today |
+| Multi-line (out of scope) | `SHOP 12 MAIN BAZAR\nNAGPUR MAHARASHTRA 440010` | identical to today |
+| City word inside the text | `NAGPUR ROAD WARDHAMAN NAGAR …` | no suffix extracted from the middle |
+| Flag off | any valid input above | byte-identical to today |
+| Property | every row | §18.9 invariants hold |
 
 ---
 

@@ -1,0 +1,277 @@
+# 29-case validation audit of docs/ADDRESS_SEGMENTATION_PLAN.md (2026-10-03).
+# Run by tests/test_address_audit29.py through resolve_address_blob(...,
+# multiline=True, bc_layer=True). Expectations are the PLAN's, not the code's:
+# corrections made during the audit are noted per case ("audit:").
+#
+# Keys (all optional except id/address):
+#   semantic        {a1, a2, boundary}   Layer-1 result, before steps 5-9
+#   final           {a1, a2}             the lines that reach Business Central
+#   geo             {city, state, pin, country, country_source}
+#   status          AUTO_PASS | AUTO_FIX | MANUAL_REVIEW | BLOCK_SUBMISSION
+#   transforms      ordered [reason_code, transformation] provenance entries
+#   findings        reason codes of review/block findings (order-insensitive)
+#   finding_detail  substring of the ADDRESS_OVERFLOW finding's detail
+#   moved           {fragment index: moved_by}; every other fragment unmoved
+
+cases:
+  - id: c01_normal_split
+    address: "F-192, Phase 8B, Industrial Area, Sector 74, SAS Nagar, Punjab 160055"
+    semantic: {a1: "F-192", a2: "Phase 8B, Industrial Area, Sector 74", boundary: 1}
+    final: {a1: "F-192", a2: "Phase 8B, Industrial Area, Sector 74"}
+    geo: {city: "SAS Nagar", state: "Punjab", pin: "160055", country: "India", country_source: default}
+    status: AUTO_PASS
+    transforms: []
+
+  - id: c02_empty_a1_one_fragment
+    address: "Sector 67, SAS Nagar, Punjab 160062"
+    semantic: {a1: "", a2: "Sector 67", boundary: 0}
+    final: {a1: "Sector 67", a2: ""}
+    geo: {city: "SAS Nagar", state: "Punjab", pin: "160062", country: "India"}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments]]
+    moved: {0: ADDRESS_1_BACKFILLED}
+
+  - id: c03_empty_a1_three_fragments
+    address: "Ward 07, Sector 67, Industrial Area, SAS Nagar, Punjab 160062"
+    final: {a1: "Ward 07, Sector 67", a2: "Industrial Area"}
+    geo: {city: "SAS Nagar", state: "Punjab", pin: "160062"}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments]]
+    moved: {0: ADDRESS_1_BACKFILLED, 1: ADDRESS_1_BACKFILLED}
+
+  - id: c04_unknown_first_later_premise
+    address: "Unknown Fragment, F-192, Phase 8B, Industrial Area, Sector 74, SAS Nagar, Punjab 160055"
+    semantic: {a1: "", a2: "Unknown Fragment, F-192, Phase 8B, Industrial Area, Sector 74", boundary: 0}
+    final: {a1: "Unknown Fragment, F-192", a2: "Phase 8B, Industrial Area, Sector 74"}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments]]
+    moved: {0: ADDRESS_1_BACKFILLED, 1: ADDRESS_1_BACKFILLED}
+
+  - id: c05_unknown_unknown
+    address: "Unknown A, Unknown B, SAS Nagar, Punjab 160062"
+    semantic: {a1: "", a2: "Unknown A, Unknown B", boundary: 0}
+    final: {a1: "Unknown A", a2: "Unknown B"}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments]]
+    moved: {0: ADDRESS_1_BACKFILLED}
+
+  - id: c06_leading_thoroughfare
+    address: "MG Road, Sector 12, Phase 3, Pune, Maharashtra 411001"
+    semantic: {a1: "", a2: "MG Road, Sector 12, Phase 3", boundary: 0}
+    final: {a1: "MG Road", a2: "Sector 12, Phase 3"}
+    geo: {city: "Pune", state: "Maharashtra", pin: "411001"}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_1_BACKFILLED, leading_thoroughfare]]
+    moved: {0: ADDRESS_1_BACKFILLED}
+
+  - id: c07_boundary_never_reopens
+    address: "Flat 402, Tower B, Sunrise Apartments, Block C, Sector 10, Pune, Maharashtra 411014"
+    semantic: {a1: "Flat 402, Tower B", a2: "Sunrise Apartments, Block C, Sector 10", boundary: 2}
+    final: {a1: "Flat 402, Tower B", a2: "Sunrise Apartments, Block C, Sector 10"}
+    geo: {city: "Pune", state: "Maharashtra", pin: "411014"}
+    status: AUTO_PASS
+    transforms: []
+
+  - id: c08_named_building_no_premise
+    address: "Sunrise Towers, Sector 10, Pune, Maharashtra 411014"
+    semantic: {a1: "", a2: "Sunrise Towers, Sector 10", boundary: 0}
+    final: {a1: "Sunrise Towers", a2: "Sector 10"}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments]]
+
+  # audit: the original input used a 50-DIGIT fragment, which the classifier
+  # (plan §3, designator shape) puts in Address 1, so A2 was never 50 chars.
+  # Letters keep the fragment in Address 2 and exercise the real boundary.
+  - id: c09_a2_exactly_50
+    address: "UNIT 7, ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWX, Pune, Maharashtra 411001"
+    semantic: {a1: "UNIT 7", a2: "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWX", boundary: 1}
+    final: {a1: "UNIT 7", a2: "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWX"}
+    status: AUTO_PASS
+    transforms: []
+
+  # audit: same test-data fix as c09 (51 letters instead of 51 digits).
+  - id: c10_a2_51_whole_fragment_moves
+    address: "UNIT 7, ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXY, Pune, Maharashtra 411001"
+    semantic: {a1: "UNIT 7", a2: "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXY", boundary: 1}
+    final: {a1: "UNIT 7, ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXY", a2: ""}
+    status: MANUAL_REVIEW
+    transforms: [[ADDRESS_BC_LENGTH_REBALANCE, bc_boundary_shift_right]]
+    findings: [ADDRESS_BC_LENGTH_REBALANCE]
+    moved: {1: ADDRESS_BC_LENGTH_REBALANCE}
+
+  - id: c11_howrah_rebalance
+    address: "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur, Howrah, West Bengal, 711302"
+    semantic: {a1: "3RD FLOOR, PART A BLOCK B", a2: "SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur", boundary: 2}
+    final: {a1: "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK", a2: "MOHIARY CHANDIBAGAN, ANDUL, Natibpur"}
+    geo: {city: "Howrah", state: "West Bengal", pin: "711302", country: "India", country_source: default}
+    status: MANUAL_REVIEW
+    transforms: [[ADDRESS_BC_LENGTH_REBALANCE, bc_boundary_shift_right]]
+    findings: [ADDRESS_BC_LENGTH_REBALANCE]
+    moved: {2: ADDRESS_BC_LENGTH_REBALANCE}
+
+  - id: c12_geography_never_enters_lines
+    address: "Ward 07, Sector 67, SAS Nagar, Punjab, 160062, India"
+    final: {a1: "Ward 07", a2: "Sector 67"}
+    geo: {city: "SAS Nagar", state: "Punjab", pin: "160062", country: "India"}
+    status: AUTO_FIX
+
+  - id: c13_explicit_country
+    address: "Ward 07, Sector 67, SAS Nagar, Punjab, 160062, India"
+    geo: {country: "India", country_source: extracted}
+
+  - id: c14_country_omitted
+    address: "Ward 07, Sector 67, SAS Nagar, Punjab, 160062"
+    geo: {country: "India", country_source: default}
+
+  - id: c15_state_pin_glued
+    address: "F-192, Phase 8B, Industrial Area, Sector 74, SAS Nagar, Punjab 160055"
+    final: {a1: "F-192", a2: "Phase 8B, Industrial Area, Sector 74"}
+    geo: {state: "Punjab", pin: "160055"}
+
+  - id: c16_multiple_place_names
+    address: "Ward No. 7, Nayak Colony, Niwari Tigela, Jhansi Road, Niwari, Tikamgarh, Madhya Pradesh, 472442"
+    final: {a1: "Ward No. 7, Nayak Colony", a2: "Niwari Tigela, Jhansi Road, Tikamgarh"}
+    geo: {city: "Niwari", state: "Madhya Pradesh", pin: "472442"}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments]]
+
+  - id: c17_city_repeated
+    address: "IT PARK, PHASE 8, MOHALI, S.A.S Nagar, Punjab, 160059"
+    final: {a1: "IT PARK", a2: "PHASE 8"}
+    geo: {city: "Mohali", state: "Punjab", pin: "160059"}
+    status: AUTO_FIX
+
+  - id: c18_ocr_deglue
+    address: "4THFLOOR, NAGPURROAD, WARDHAMAN NAGAR, NAGPUR, MAHARASHTRA"
+    final: {a1: "4TH FLOOR", a2: "NAGPURROAD, WARDHAMAN NAGAR"}
+    geo: {city: "Nagpur", state: "Maharashtra", pin: ""}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_OCR_REPAIRED, ocr_deglue]]
+    findings: []
+
+  - id: c19_single_fragment_over_100
+    address: "UNIT 7, THISISANEXTREMELYLONGLOCALITYNAMETHATISINTENTIONALLYCREATEDTOBEOVERONEHUNDREDCHARACTERSLONGABCDEFGHIJKLMNOPQRSTUVWXYZ, Pune, Maharashtra 411001"
+    final: {a1: "UNIT 7", a2: "THISISANEXTREMELYLONGLOCALITYNAMETHATISINTENTIONALLYCREATEDTOBEOVERONEHUNDREDCHARACTERSLONGABCDEFGHIJKLMNOPQRSTUVWXYZ"}
+    status: BLOCK_SUBMISSION
+    transforms: []
+    findings: [ADDRESS_OVERFLOW]
+    finding_detail: fragment_too_long
+
+  - id: c20_no_whole_fragment_split
+    address: "UNIT 7, ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOP, ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXY, Pune, Maharashtra 411001"
+    final: {a1: "UNIT 7", a2: "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOP, ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXY"}
+    status: BLOCK_SUBMISSION
+    transforms: []
+    findings: [ADDRESS_OVERFLOW]
+
+  - id: c21_backfill_then_rebalance
+    address: "Ward 07, Sector 67, SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Pune, Maharashtra 411001"
+    semantic: {a1: "", a2: "Ward 07, Sector 67, SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL", boundary: 0}
+    final: {a1: "Ward 07, Sector 67, SRIJAN INDUSTRIAL LOGISTIC PARK", a2: "MOHIARY CHANDIBAGAN, ANDUL"}
+    status: MANUAL_REVIEW
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments], [ADDRESS_BC_LENGTH_REBALANCE, bc_boundary_shift_right]]
+    findings: [ADDRESS_BC_LENGTH_REBALANCE]
+    moved: {0: ADDRESS_1_BACKFILLED, 1: ADDRESS_1_BACKFILLED, 2: ADDRESS_BC_LENGTH_REBALANCE}
+
+  # audit: the original c22 input gives A1 = 58 characters, so it never
+  # reached the ">100" path. Kept as c22_original_fits; c22a-c are the
+  # inputs that actually exercise it.
+  - id: c22_original_fits
+    address: "3RD FLOOR, PART A BLOCK B, TOWER B, WING C, UNIT 987654321, Pune, Maharashtra 411001"
+    final: {a1: "3RD FLOOR, PART A BLOCK B, TOWER B, WING C, UNIT 987654321", a2: ""}
+    status: AUTO_PASS
+    transforms: []
+
+  - id: c22a_a1_over_100_left_shift
+    address: "3RD FLOOR, PART A BLOCK B, TOWER B, WING C, UNIT 987654321, SHOP 1234567890123, FLAT 998877665544332211, Sector 10, Pune, Maharashtra 411001"
+    semantic: {boundary: 7}
+    final: {a1: "3RD FLOOR, PART A BLOCK B, TOWER B, WING C, UNIT 987654321, SHOP 1234567890123", a2: "FLAT 998877665544332211, Sector 10"}
+    status: MANUAL_REVIEW
+    transforms: [[ADDRESS_BC_LENGTH_REBALANCE, bc_boundary_shift_left]]
+    findings: [ADDRESS_BC_LENGTH_REBALANCE]
+    moved: {6: ADDRESS_BC_LENGTH_REBALANCE}
+
+  - id: c22b_a1_over_100_no_fit
+    address: "3RD FLOOR, PART A BLOCK B, TOWER B, WING C, UNIT 987654321, SHOP 1234567890123, FLAT 998877665544332211, SRIJAN INDUSTRIAL LOGISTIC PARK, Pune, Maharashtra 411001"
+    final: {a1: "3RD FLOOR, PART A BLOCK B, TOWER B, WING C, UNIT 987654321, SHOP 1234567890123, FLAT 998877665544332211", a2: "SRIJAN INDUSTRIAL LOGISTIC PARK"}
+    status: BLOCK_SUBMISSION
+    transforms: []
+    findings: [ADDRESS_OVERFLOW]
+
+  - id: c22c_backfill_makes_a1_over_100
+    address: "SRIJAN INDUSTRIAL LOGISTIC PARK AND WAREHOUSING COMPLEX NORTH, MOHIARY CHANDIBAGAN VILLAGE PANCHAYAT AREA WEST, ANDUL, Pune, Maharashtra 411001"
+    final: {a1: "SRIJAN INDUSTRIAL LOGISTIC PARK AND WAREHOUSING COMPLEX NORTH, MOHIARY CHANDIBAGAN VILLAGE PANCHAYAT AREA WEST", a2: "ANDUL"}
+    status: BLOCK_SUBMISSION
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments]]
+    findings: [ADDRESS_OVERFLOW]
+
+  # c23 (stored legacy Address 3/4) is a payload-gate case -- see the test file.
+
+  # audit: the expectation listed only the semantic split. A2 is 55 > 50, so
+  # plan §6/§7 require the whole-fragment rebalance: Sunrise Apartments moves,
+  # Block C / Wing D stay in Address 2 (the boundary does not reopen).
+  - id: c24_boundary_reopening_stress
+    address: "Flat 402, Tower B, Sunrise Apartments, Block C, Wing D, Sector 10, Phase 2, Pune, Maharashtra 411014"
+    semantic: {a1: "Flat 402, Tower B", a2: "Sunrise Apartments, Block C, Wing D, Sector 10, Phase 2", boundary: 2}
+    final: {a1: "Flat 402, Tower B, Sunrise Apartments", a2: "Block C, Wing D, Sector 10, Phase 2"}
+    status: MANUAL_REVIEW
+    transforms: [[ADDRESS_BC_LENGTH_REBALANCE, bc_boundary_shift_right]]
+    findings: [ADDRESS_BC_LENGTH_REBALANCE]
+    moved: {2: ADDRESS_BC_LENGTH_REBALANCE}
+
+  - id: c25a_scf
+    address: "SCF 19, Phase 2, Industrial Area, Sector 74, Mohali, Punjab 160055"
+    semantic: {a1: "SCF 19", boundary: 1}
+  - id: c25b_sco
+    address: "SCO 284, Sector 17, Chandigarh, Chandigarh 160017"
+    semantic: {a1: "SCO 284", boundary: 1}
+  - id: c25c_booth
+    address: "Booth 307-308, Sector 22, Chandigarh, Chandigarh 160022"
+    semantic: {a1: "Booth 307-308", boundary: 1}
+  - id: c25d_plot
+    address: "Plot 575C, Industrial Area, Phase 2, Mohali, Punjab 160055"
+    semantic: {a1: "Plot 575C", boundary: 1}
+  - id: c25e_shop
+    address: "Shop 38, Sunrise Plaza, Sector 10, Pune, Maharashtra 411014"
+    semantic: {a1: "Shop 38", boundary: 1}
+  # audit: was "Flat 402". "Tower B" (Tower as a HEAD) is structural -> A1
+  # (plan §3), exactly as c07 expects.
+  - id: c25f_flat
+    address: "Flat 402, Tower B, Sunrise Apartments, Sector 10, Pune, Maharashtra 411014"
+    semantic: {a1: "Flat 402, Tower B", a2: "Sunrise Apartments, Sector 10", boundary: 2}
+
+  - id: c26_tower_vs_phase
+    address: "F-192, Tower B, Phase 8B, Industrial Area, Sector 74, SAS Nagar, Punjab 160055"
+    final: {a1: "F-192, Tower B", a2: "Phase 8B, Industrial Area, Sector 74"}
+    status: AUTO_PASS
+
+  # audit: was final "Sunrise Apartments" / "Tower B, Sector 10". Plan §4:
+  # boundary = 1 if n <= 2 else 2 -- n = 3, so two fragments move.
+  - id: c27_named_building_not_semantic_a1
+    address: "Sunrise Apartments, Tower B, Sector 10, Pune, Maharashtra 411014"
+    semantic: {a1: "", a2: "Sunrise Apartments, Tower B, Sector 10", boundary: 0}
+    final: {a1: "Sunrise Apartments, Tower B", a2: "Sector 10"}
+    status: AUTO_FIX
+    transforms: [[ADDRESS_1_BACKFILLED, first_1_2_fragments]]
+    moved: {0: ADDRESS_1_BACKFILLED, 1: ADDRESS_1_BACKFILLED}
+
+  # audit: plan gap closed by GEOGRAPHY_UNRESOLVED (plan §7, D5). Comma-less
+  # geography is still NOT peeled -- the text is kept exactly and a human
+  # fixes City/State; the finding makes that visible instead of AUTO_PASS.
+  - id: c28_commaless
+    address: "2ND FLOOR SILICON PLAZA RING ROAD ZOO ROAD GUWAHATI ASSAM"
+    final: {a1: "2ND FLOOR", a2: "SILICON PLAZA, RING ROAD, ZOO ROAD, GUWAHATI ASSAM"}
+    geo: {city: "", state: "", pin: ""}
+    status: MANUAL_REVIEW
+    transforms: [[ADDRESS_OCR_REPAIRED, comma_less_boundary_inference]]
+    findings: [GEOGRAPHY_UNRESOLVED]
+
+  - id: c29_full_mega
+    address: "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur, Howrah, West Bengal, 711302, India"
+    semantic: {a1: "3RD FLOOR, PART A BLOCK B", a2: "SRIJAN INDUSTRIAL LOGISTIC PARK, MOHIARY CHANDIBAGAN, ANDUL, Natibpur", boundary: 2}
+    final: {a1: "3RD FLOOR, PART A BLOCK B, SRIJAN INDUSTRIAL LOGISTIC PARK", a2: "MOHIARY CHANDIBAGAN, ANDUL, Natibpur"}
+    geo: {city: "Howrah", state: "West Bengal", pin: "711302", country: "India", country_source: extracted}
+    status: MANUAL_REVIEW
+    transforms: [[ADDRESS_BC_LENGTH_REBALANCE, bc_boundary_shift_right]]
+    findings: [ADDRESS_BC_LENGTH_REBALANCE]
+    moved: {2: ADDRESS_BC_LENGTH_REBALANCE}
