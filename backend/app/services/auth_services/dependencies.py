@@ -5,7 +5,15 @@ from app.database.db import get_db
 from app.services.auth_services.security import decode_token
 from app.models.model import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+# `description` is documentation only (shown in Swagger's Authorize popup); token
+# extraction and validation are unchanged. See app/swagger_ui.py.
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="auth/login",
+    description=(
+        "Sign in with your application account: enter your **email** in the "
+        "*username* box and your password. Leave client_id and client_secret blank."
+    ),
+)
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),

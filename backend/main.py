@@ -22,6 +22,7 @@ from app.config.settings import (
     ensure_directories,
     settings,
 )
+from app.swagger_ui import swagger_ui_response
 from app.routers.extraction import router
 from app.routers.onboarding import router as onboarding_router
 from app.database.db import get_db, Base, engine
@@ -44,7 +45,14 @@ def create_app() -> FastAPI:
     configure_logging()
     ensure_directories()
 
-    app = FastAPI(title=APP_TITLE)
+    # docs_url=None: /docs is served below by our own route, with the same
+    # Swagger UI plus a request interceptor that lets the Authorize popup use
+    # the app's JSON /auth/login (see app/swagger_ui.py).
+    app = FastAPI(title=APP_TITLE, docs_url=None)
+
+    @app.get("/docs", include_in_schema=False)
+    def swagger_ui():
+        return swagger_ui_response(app.openapi_url, f"{APP_TITLE} - Swagger UI")
 
     # CORS. Local dev is permissive (any origin -- the React dev server's port
     # varies and tunnels change hostnames). Test / Production allow ONLY the

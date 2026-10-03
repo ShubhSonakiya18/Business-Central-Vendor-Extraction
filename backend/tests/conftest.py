@@ -14,6 +14,17 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 
+@pytest.fixture(autouse=True)
+def _no_live_gst_calls(monkeypatch):
+    """backend/.env may enable live GSTIN verification for local development.
+    Tests must never reach Decentro / gstinapi.in (billable, quota-limited), so
+    force it off for every test. Tests of the verification service turn it back
+    on themselves, with the HTTP layer mocked."""
+    from app.config.config import settings
+
+    monkeypatch.setattr(settings, "GSTIN_API_ENABLED", False)
+
+
 @pytest.fixture
 def db_session_factory():
     # One shared connection (StaticPool) so every session in a test sees the
