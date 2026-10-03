@@ -55,6 +55,13 @@ const EditIcon = () => (
  * flagged (low OCR confidence, failed validation, etc). This is separate
  * from an excel_mismatch and both can fire independently on the same row.
  */
+// Extraction scoring signals ("adjacent_same_line:+0.18", "inline:+0.30",
+// "pattern_only:-0.10", ...) are not shown to the reviewer; every other note is.
+const SCORE_SIGNAL = /^[a-z0-9_]+:[+-]\d+(\.\d+)?$/i
+const isVisibleNote = note => !(typeof note === 'string' && SCORE_SIGNAL.test(note.trim()))
+// "expected_document:gst_certificate" is displayed as "Source: gst_certificate".
+const displayNote = note => String(note).replace(/^expected_document:\s*/, 'Source: ')
+
 function buildRows(fields, needsReview, excelUploaded) {
   const reviewSet = new Set(needsReview ?? [])
 
@@ -226,15 +233,15 @@ export default function VendorComparePage() {
                   <tr key={row.label} className={row.isMismatch ? 'row-mismatch' : ''}>
                     <td>
                       {row.label}
-                      {row.notes.length > 0 && (
+                      {row.notes.some(isVisibleNote) && (
                         <div className="field-notes">
-                          {row.notes.map((note, i) => {
+                          {row.notes.filter(isVisibleNote).map((note, i) => {
                             const cls = note.includes('NOT active')
                               ? 'field-note field-note--warning'
                               : note.startsWith('GST registry: active')
                                 ? 'field-note field-note--active'
                                 : 'field-note'
-                            return <div key={i} className={cls}>{note}</div>
+                            return <div key={i} className={cls}>{displayNote(note)}</div>
                           })}
                         </div>
                       )}

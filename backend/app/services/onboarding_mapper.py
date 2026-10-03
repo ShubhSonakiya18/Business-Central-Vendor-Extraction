@@ -379,12 +379,14 @@ def to_onboarding_schema(result: ExtractionResult) -> dict[str, Any]:
     pan = _valid_value(result, "pan")
     review = _fields_needing_review(result)
 
-    # Live GST-registry check (gstinapi.in), shared by the vendor and
+    # Live GST-registry check (Decentro GSTIN_DETAILED, gstinapi.in fallback), shared by the vendor and
     # customer flows since both go through this same function. Separate from
     # the regex/checksum format check `_valid_value` already applied above --
     # this confirms the GSTIN is actually registered and active, not just
     # well-shaped. A no-op (checked=False) when GSTIN_API_ENABLED is off, the
     # key is missing, or the call fails -- never blocks extraction.
+    from app.services.gstin_verification import GstinVerificationResult
+
     gst_verification = None
     if gst:
         from app.services.gstin_verification import verify_gstin
@@ -436,15 +438,7 @@ def to_onboarding_schema(result: ExtractionResult) -> dict[str, Any]:
         },
         "source_documents": _source_documents(result),
         "fields_needing_review": review,
-        "gst_verification": {
-            "checked": gst_verification.checked if gst_verification else False,
-            "active": gst_verification.active if gst_verification else False,
-            "status": gst_verification.status if gst_verification else "",
-            "legal_name": gst_verification.legal_name if gst_verification else "",
-            "trade_name": gst_verification.trade_name if gst_verification else "",
-            "address": gst_verification.address if gst_verification else "",
-            "city": gst_verification.city if gst_verification else "",
-            "pincode": gst_verification.pincode if gst_verification else "",
-            "error": gst_verification.error if gst_verification else "",
-        },
+        # The normalized GST verification model (the original nine keys plus the
+        # provider diagnostics, KYB data and additional places of business).
+        "gst_verification": (gst_verification or GstinVerificationResult(checked=False)).to_dict(),
     }

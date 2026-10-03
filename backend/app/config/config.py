@@ -95,21 +95,27 @@ class Settings(BaseSettings):
     BC_ADDRESS_LAYER_ENABLED: bool = False
     BC_PAYLOAD_GATE_ENABLED: bool = False
 
-    # -- GSTIN live verification (Decentro KYC, primary; gstinapi.in, fallback) --
+    # -- GSTIN live verification (Decentro GSTIN_DETAILED, primary; gstinapi.in, fallback) --
     # Confirms a GSTIN is actually registered/active in the GST registry --
     # separate from validator.py's regex/checksum format check, which never
     # leaves the machine. Off by default: must be turned on deliberately, not
     # fire on every extraction run/test the way Gemini's per-project quota
     # already has (see CLAUDE.md). Shared by both the vendor and customer
-    # flows. Decentro is tried first (client_id/client_secret/module_secret
-    # headers); if it's unconfigured or its call fails, gstinapi.in is tried
-    # next if GSTIN_API_KEY is set -- see gstin_verification.py.
+    # flows. Decentro is tried first; gstinapi.in only when Decentro is not
+    # configured or its call fails -- see gstin_verification.py and
+    # docs/GSTIN_VERIFICATION.md.
+    #
+    # The Decentro document type (GSTIN_DETAILED) and generate_pdf=false are
+    # fixed in code, not settings. Auth is client_id + client_secret;
+    # DECENTRO_MODULE_SECRET is kept here so existing .env files still load,
+    # but it is NOT sent (not in the GSTIN_DETAILED docs).
     GSTIN_API_ENABLED: bool = False
     DECENTRO_CLIENT_ID: str = ""
     DECENTRO_CLIENT_SECRET: str = ""
     DECENTRO_MODULE_SECRET: str = ""
-    # staging.dashboard.decentro.tech -> staging base URL. Switch to
-    # Decentro's production base URL once this moves off the sandbox account.
+    # STAGING today (staging.dashboard.decentro.tech). Moving to production is
+    # an env-file change only: Decentro's production base URL plus production
+    # credentials. Production credentials must never be committed.
     DECENTRO_BASE_URL: str = "https://in.staging.decentro.tech"
     GSTIN_API_KEY: str = ""
 

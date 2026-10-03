@@ -69,10 +69,17 @@ class TestHappyPath:
         # defaults off in tests (see gstin_verification.py) -- but the KEY
         # itself is always present in the schema regardless, so the shape
         # never varies with whether live verification actually ran.
-        assert set(self.out["gst_verification"]) == {
+        # The original nine keys must all still be there; the normalized model
+        # (GstinVerificationResult.to_dict) adds provider diagnostics, KYB data
+        # and additional places of business on top of them.
+        original_nine = {
             "checked", "active", "status", "legal_name", "trade_name",
             "address", "city", "pincode", "error",
         }
+        keys = set(self.out["gst_verification"])
+        assert original_nine <= keys
+        assert {"state", "provider", "document_type", "record_found", "primary_error",
+                "additional_places_of_business", "additional_places_unrecognized"} <= keys
 
     def test_business_fields_present_but_empty(self):
         # No document supplies these; type defaults to "Services".

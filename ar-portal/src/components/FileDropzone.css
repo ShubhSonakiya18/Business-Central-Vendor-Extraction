@@ -66,6 +66,9 @@
   transition: box-shadow 0.15s;
 }
 .file-chip:hover { box-shadow: 0 1px 4px rgba(17,24,39,.08); }
+.file-chip--openable { cursor: pointer; }
+.file-chip--openable:hover .chip-name { text-decoration: underline; }
+.file-chip--openable:focus-visible { outline: 2px solid var(--color-primary, #2f5d57); outline-offset: 2px; }
 
 .chip-type {
   width: 26px;

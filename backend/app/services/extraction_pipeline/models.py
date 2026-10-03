@@ -388,6 +388,12 @@ class ExtractionResult:
     needs_review: list[dict] = field(default_factory=list)
     documents: list[dict] = field(default_factory=list)
     duration_s: float = 0.0
+    # Normalized live GST-registry verification (services/gstin_verification.py),
+    # set only when the live check actually answered. Kept apart from `fields`
+    # so the principal AND additional places of business, the KYB data and the
+    # provider diagnostics reach the validation layer without being forced
+    # into a flat field.
+    gst_verification: Optional[dict] = None
 
     def canonical(self) -> dict:
         """The flat vendor JSON, shaped exactly like V1's so the Excel writer
@@ -398,7 +404,7 @@ class ExtractionResult:
         return out
 
     def to_dict(self) -> dict:
-        return {
+        out = {
             "canonical": self.canonical(),
             "fields": {k: r.to_dict() for k, r in self.fields.items()},
             "needs_review": self.needs_review,
@@ -406,6 +412,9 @@ class ExtractionResult:
             "duration_s": round(self.duration_s, 3),
             "summary": self.summary(),
         }
+        if self.gst_verification is not None:
+            out["gst_verification"] = self.gst_verification
+        return out
 
     def summary(self) -> dict:
         total = len(self.fields)

@@ -93,6 +93,12 @@ as a step *before* restarting the backend. Migration files live in
 `backend/alembic/versions/` and are committed alongside the model change that
 produced them. See `backend/alembic/README` for the workflow.
 
+## GST verification (Decentro / gstinapi.in)
+
+Live GST verification is off by default and configured per environment in the
+env file. Test and Production need their own Decentro base URL and credentials,
+never committed. See [GSTIN_VERIFICATION.md](GSTIN_VERIFICATION.md).
+
 ## Business Central push (vendor)
 
 Currently a **manual** flow — the portal cannot reach `ntz-srv-bcdb:2248`

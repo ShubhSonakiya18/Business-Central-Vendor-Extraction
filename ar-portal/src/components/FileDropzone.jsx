@@ -38,6 +38,34 @@ function typeLabel(t) {
   return t === 'pdf' ? 'PDF' : t === 'excel' ? 'XLS' : 'DOC'
 }
 
+// Types a browser tab can render itself. Anything else (xlsx, docx, ...) cannot
+// be displayed inline, so it is handed to the browser as a download instead.
+const VIEWABLE = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', webp: 'image/webp', txt: 'text/plain',
+}
+
+function openFile(f) {
+  const ext = f.name.split('.').pop().toLowerCase()
+  const mime = VIEWABLE[ext]
+  // Re-wrap with an explicit type so the tab renders the file even when the OS
+  // reported no MIME type for it.
+  const blob = mime ? new Blob([f.fileObject], { type: mime }) : f.fileObject
+  const url = URL.createObjectURL(blob)
+  if (mime) {
+    window.open(url, '_blank', 'noopener')
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = f.name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+  // Give the new tab time to load before the URL is released.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
 export default function FileDropzone({ files, setFiles, accept }) {
   const inputRef = useRef(null)
   const [dragOver, setDragOver] = useState(false)
@@ -82,9 +110,19 @@ export default function FileDropzone({ files, setFiles, accept }) {
         ) : (
           <div className="file-chips">
             {files.map(f => (
-              <div key={f.id} className="file-chip">
+              <div
+                key={f.id}
+                className="file-chip file-chip--openable"
+                role="button"
+                tabIndex={0}
+                title={`Open ${f.name}`}
+                onClick={e => { e.stopPropagation(); openFile(f) }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); openFile(f) }
+                }}
+              >
                 <span className={`chip-type chip-type--${f.type}`}>{typeLabel(f.type)}</span>
-                <span className="chip-name" title={f.name}>{f.name}</span>
+                <span className="chip-name">{f.name}</span>
                 <button
                   className="chip-remove"
                   aria-label={`Remove ${f.name}`}

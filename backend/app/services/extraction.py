@@ -169,13 +169,34 @@ def _apply_gstin_verification(result) -> None:
     if not verification.checked:
         return  # disabled / no key / call failed -- nothing to add
 
-    if verification.active:
+    # Normalized result (principal + additional places, KYB data, provider
+    # diagnostics) for the validation layer; persisted with raw_extraction.
+    result.gst_verification = verification.to_dict()
+
+    if not verification.record_found:
+        field.notes.append("GST registry: NOT active (GSTIN not found in the registry)")
+        field.validation_messages.append("GSTIN was not found in the live GST registry")
+        if field.validation_status == "valid":
+            field.validation_status = "warning"
+    elif verification.active:
         field.notes.append("GST registry: active")
     else:
-        field.notes.append("GST registry: NOT active")
+        label = f" ({verification.status})" if verification.status else ""
+        field.notes.append(f"GST registry: NOT active{label}")
         field.validation_messages.append("GSTIN is registered but not active per the live GST registry")
         if field.validation_status == "valid":
             field.validation_status = "warning"
+
+    if verification.provider == "gstinapi" and verification.primary_error:
+        # The fallback answered: say so, so it is never mistaken for Decentro working.
+        field.notes.append(
+            f"GST registry checked via fallback (gstinapi.in); primary provider: {verification.primary_error}"
+        )
+    if verification.additional_places_unrecognized:
+        field.notes.append(
+            f"{verification.additional_places_unrecognized} additional place(s) of business "
+            "not recognised; review the GST registry"
+        )
 
     if verification.address:
         _overwrite_address_from_registry(result, verification.address)
