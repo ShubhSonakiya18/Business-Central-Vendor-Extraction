@@ -7,6 +7,7 @@ import VendorConfirmPage from './pages/VendorConfirmPage'
 import CustomerUploadPage from './pages/CustomerUploadPage'
 import CustomerReviewPage from './pages/CustomerReviewPage'
 import CustomerConfirmPage from './pages/CustomerConfirmPage'
+import CustomerExcelValidationPage from './pages/CustomerExcelValidationPage'
 import RecordsPage from './pages/RecordsPage'
 import RecordDetailPage from './pages/RecordDetailPage'
 import { isLoggedIn } from './api'
@@ -30,6 +31,7 @@ function App() {
         <Route path="/customer/upload"     element={<RequireAuth><CustomerUploadPage /></RequireAuth>} />
         <Route path="/customer/review"     element={<RequireAuth><CustomerReviewPage /></RequireAuth>} />
         <Route path="/customer/confirm"    element={<RequireAuth><CustomerConfirmPage /></RequireAuth>} />
+        <Route path="/customer/validate-excel" element={<RequireAuth><CustomerExcelValidationPage /></RequireAuth>} />
         <Route path="/records"             element={<RequireAuth><RecordsPage /></RequireAuth>} />
         <Route path="/records/:kind"       element={<RequireAuth><RecordsPage /></RequireAuth>} />
         <Route path="/records/:kind/:id"   element={<RequireAuth><RecordDetailPage /></RequireAuth>} />

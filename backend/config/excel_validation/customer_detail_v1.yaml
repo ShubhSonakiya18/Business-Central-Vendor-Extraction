@@ -1,0 +1,47 @@
+# =============================================================================
+# EXCEL VALIDATION LAYOUT: Customer Detail form ("Indian Company" sheet)
+# =============================================================================
+# Read-only layout for POST /customer-validation/excel (services/
+# customer_excel_validation.py). Same cell format ExcelMapper already uses for
+# config/excel_mappings/*.yaml, plus a `label` per field: the text expected in
+# column B next to each value cell. Every label is checked before any value is
+# trusted, so a file with a different layout is rejected, never misread.
+#
+# Kept OUT of config/excel_mappings/ on purpose: that folder is listed in the
+# vendor /extract mapping dropdown, and this is not a fill-in template.
+#
+# Layout confirmed fixed for now (2026-10-05). Another layout = another YAML
+# in this folder; no code change.
+# =============================================================================
+
+template: customer_detail_v1
+description: Customer Detail form, Indian Company sheet (labels in column B, values in column C, rows 3-28)
+sheet: Indian Company
+
+fields:
+  customer_no:            {cell: C3,  label: "No."}
+  name:                   {cell: C4,  label: "Name"}
+  search_name:            {cell: C5,  label: "Search Name"}
+  pan:                    {cell: C6,  label: "PAN Number"}
+  gstin:                  {cell: C7,  label: "GST Number"}
+  address_1:              {cell: C8,  label: "Address"}
+  address_2:              {cell: C9,  label: "Address 2"}
+  state:                  {cell: C10, label: "State"}
+  city:                   {cell: C11, label: "City"}
+  contact:                {cell: C12, label: "Contact"}
+  phone:                  {cell: C13, label: "Phone No."}
+  supply_type_code:       {cell: C14, label: "Supply Type code"}
+  ship_to_code:           {cell: C15, label: "Ship-to Code"}
+  customer_posting_group: {cell: C16, label: "Customer Posting Group"}
+  currency_code:          {cell: C17, label: "Currency Code"}
+  payment_terms_code:     {cell: C18, label: "Payment Terms Code"}
+  salesperson_code:       {cell: C19, label: "Salesperson Code"}
+  country_region_code:    {cell: C20, label: "Country/Region Code"}
+  location_code:          {cell: C21, label: "Location Code"}
+  gen_bus_posting_group:  {cell: C22, label: "Gen. Bus. Posting Group"}
+  zip_code:               {cell: C23, label: "ZIP Code"}
+  state_2:                {cell: C24, label: "State"}
+  email:                  {cell: C25, label: "Email"}
+  email_cc:               {cell: C26, label: "Email Cc"}
+  tax_area_code:          {cell: C27, label: "Tax Area Code"}
+  tax_liable:             {cell: C28, label: "Tax Liable"}

@@ -52,6 +52,13 @@ const ACTION_CARDS = [
     route:  '/customer/upload',
   },
   {
+    id:     'card-customer-excel',
+    title:  'Customer Excel Validation',
+    desc:   'Upload a filled Customer Detail Excel to check it against the GST registry. Review only, nothing is saved.',
+    icon:   <CustomerIcon />,
+    route:  '/customer/validate-excel',
+  },
+  {
     id:     'card-records',
     title:  'Saved Records',
     desc:   'View vendors and customers already saved in the portal.',

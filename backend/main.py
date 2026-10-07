@@ -30,6 +30,7 @@ from app.routers.auth import router as auth_router
 from app.routers.vendors import router as vendors_router
 from app.routers.customers import router as customers_router
 from app.routers.business_central import router as bc_router
+from app.routers.customer_validation import router as customer_validation_router
 
 # Import the models module so every table is registered on Base.metadata
 # (the routers above import it transitively, but do not rely on that ordering).
@@ -83,6 +84,7 @@ def create_app() -> FastAPI:
     app.include_router(vendors_router)
     app.include_router(customers_router)
     app.include_router(bc_router)
+    app.include_router(customer_validation_router)
     return app
 
 

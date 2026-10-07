@@ -196,6 +196,25 @@ export function createVendor(payload)   { return authJson('/vendors', 'POST', pa
 /** Persist a reviewed customer record. 409 on duplicate GSTIN, as above. */
 export function createCustomer(payload) { return authJson('/customers', 'POST', payload) }
 
+/**
+ * Validate an already-filled Customer Detail Excel against the live GST
+ * registry (POST /customer-validation/excel). Read-only: nothing is saved and
+ * no customer is created. Authenticated, since each call can spend GST quota.
+ */
+export async function validateCustomerExcel(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await authFetch('/customer-validation/excel', { method: 'POST', body: formData })
+  let body = null
+  try { body = await res.json() } catch (_) {}
+  if (!res.ok) {
+    const err = new Error(errorMessage(body, res.status))
+    err.status = res.status
+    throw err
+  }
+  return body
+}
+
 /* ─── Saved records ─────────────────────────────────────────────────── */
 export function listVendors()             { return authJson('/vendors', 'GET') }
 export function getVendorById(id)          { return authJson(`/vendors/${id}`, 'GET') }

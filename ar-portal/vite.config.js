@@ -16,6 +16,7 @@ const proxied = [
   '/auth',
   '/vendors',
   '/customers',
+  '/customer-validation',
   '/business-central',
 ]
 

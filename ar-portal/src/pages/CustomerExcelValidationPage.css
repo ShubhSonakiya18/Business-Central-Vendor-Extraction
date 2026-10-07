@@ -1,0 +1,84 @@
+/* Customer Excel Validation page. The table itself reuses VendorComparePage.css. */
+
+.badge--danger { background: var(--color-error-bg); color: var(--color-error-text); }
+
+.cev-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-error-bg);
+  border: 1px solid #FECACA;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 0.85rem;
+  color: var(--color-error-text);
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+
+.gst-panel {
+  margin: 24px 0 16px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border, #E5E7EB);
+  background: #fff;
+}
+.gst-panel--success { border-left: 4px solid var(--color-success); }
+.gst-panel--warning { border-left: 4px solid var(--color-warning); }
+.gst-panel--danger  { border-left: 4px solid var(--color-error); }
+
+.gst-panel-headline {
+  margin: 0 0 6px;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.gst-panel--success .gst-panel-headline { color: var(--color-success-text); }
+.gst-panel--warning .gst-panel-headline { color: var(--color-warning-text); }
+.gst-panel--danger  .gst-panel-headline { color: var(--color-error-text); }
+
+.gst-panel-fallback {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.gst-panel-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px 20px;
+  margin: 10px 0 0;
+}
+.gst-panel-facts div { min-width: 0; }
+.gst-panel-facts dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+.gst-panel-facts dd {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+.cev-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.cev-filter {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
